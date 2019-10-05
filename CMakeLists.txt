@@ -1,0 +1,69 @@
+cmake_minimum_required(VERSION 3.5)
+project(wifibroadcast_bridge)
+
+# Add the local cmake directory to the modules path
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
+# Define some default CFLAGS
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -DBOOST_LOG_DYN_LINK")
+
+# Add the local include directory to the include path
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+# Find the boost libraries
+find_package(Boost REQUIRED COMPONENTS
+  program_options
+  system
+  filesystem
+  log)
+include_directories(${Boost_INCLUDE_DIR})
+
+# Find the pcap library
+find_package(PCAP)
+
+# find the pthread library
+find_package(Threads)
+
+# Find the python3 interpreter
+if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
+  set(Python_ADDITIONAL_VERSIONS "3")
+  set(PYTHON_EXECUTABLE "/usr/bin/python3")
+  find_package(PythonInterp 3.0 REQUIRED)
+  set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages")
+else ()
+  find_package(Python3 COMPONENTS Interpreter)
+  set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages")
+endif ()
+
+# Build the wfb_bridge program
+add_executable(wfb_bridge src/wfb_bridge.cc src/raw_socket.cc src/fec.c src/fec.cc src/radiotap.c src/logging.cc)
+install(TARGETS wfb_bridge DESTINATION bin COMPONENT applications)
+target_link_libraries(wfb_bridge ${Boost_LIBRARIES} pcap pthread)
+
+# Add rules to install the python executables
+install(PROGRAMS python/wifi_config.py DESTINATION bin)
+
+# Add rules to install the configuration files
+install(PROGRAMS conf/wfb_bridge DESTINATION etc/default)
+install(PROGRAMS conf/wifi_config DESTINATION etc/default)
+
+# Add rules to install the services files
+install(PROGRAMS services/wfb_bridge.service DESTINATION etc/systemd/system)
+install(PROGRAMS services/wifi_config.service DESTINATION etc/systemd/system)
+
+# Add the debian debian package dependencies
+set(CPACK_DEBIAN_PACKAGE_DEPENDS python3-udev libpcap-0.8)
+
+# Add rules to build a debian package
+install(TARGETS wfb_bridge
+  COMPONENT applications
+  RUNTIME DESTINATION "/usr/bin"
+  LIBRARY DESTINATION "/usr/lib"
+  DESTINATION "/"
+)
+
+set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con") #required
+set(CPACK_PACKAGE_VERSION "0.1.0")
+include(CPack)

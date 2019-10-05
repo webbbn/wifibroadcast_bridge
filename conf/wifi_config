@@ -1,0 +1,15 @@
+[DEFAULT]
+frequency = 2412
+txpower = 40
+bitrate = 11
+loglevel = debug
+
+[ath9k]
+frequency = 2412
+txpower = 40
+bitrate = 11
+
+[rtl88xx]
+frequency = 5320
+txpower = 40
+bitrate = 11
