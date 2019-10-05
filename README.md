@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/webbbn/wifibroadcast_bridge.svg?branch=master)](https://travis-ci.com/webbbn/wifibroadcast_bridge)
+
 # wifibroadcast_bridge
 A UDP bridge over a wifibroadcast link
 
