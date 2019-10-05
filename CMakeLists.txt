@@ -38,31 +38,24 @@ endif ()
 
 # Build the wfb_bridge program
 add_executable(wfb_bridge src/wfb_bridge.cc src/raw_socket.cc src/fec.c src/fec.cc src/radiotap.c src/logging.cc)
-install(TARGETS wfb_bridge DESTINATION bin COMPONENT applications)
+install(TARGETS wfb_bridge DESTINATION usr/bin COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} pcap pthread)
 
 # Add rules to install the python executables
-install(PROGRAMS python/wifi_config.py DESTINATION bin)
+install(PROGRAMS python/wifi_config.py DESTINATION usr/bin COMPONENT applications)
 
 # Add rules to install the configuration files
-install(PROGRAMS conf/wfb_bridge DESTINATION etc/default)
-install(PROGRAMS conf/wifi_config DESTINATION etc/default)
+install(PROGRAMS conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
+install(PROGRAMS conf/wifi_config DESTINATION etc/default COMPONENT configuration)
 
 # Add rules to install the services files
-install(PROGRAMS services/wfb_bridge.service DESTINATION etc/systemd/system)
-install(PROGRAMS services/wifi_config.service DESTINATION etc/systemd/system)
+install(PROGRAMS services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
+install(PROGRAMS services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
 
 # Add the debian debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS python3-udev libpcap0.8)
 
 # Add rules to build a debian package
-install(TARGETS wfb_bridge
-  COMPONENT applications
-  RUNTIME DESTINATION "/usr/bin"
-  LIBRARY DESTINATION "/usr/lib"
-  DESTINATION "/"
-)
-
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con") #required
 set(CPACK_PACKAGE_VERSION "0.1.0")

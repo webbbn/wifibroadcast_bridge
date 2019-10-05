@@ -18,5 +18,24 @@ mkdir build
 cd build
 cmake ..
 make
+~~~
+
+### Install to a local directory
+
+~~~
+cmake -DCMAKE_INSTALL_PREFIX=<install directory>
+make install
+~~~
+
+### Install into system directories
+
+~~~
+cmake -DCMAKE_INSTALL_PREFIX=/
+sudo make install
+~~~
+
+### Create an installable .deb file
+
+~~~
 cpack
 ~~~
