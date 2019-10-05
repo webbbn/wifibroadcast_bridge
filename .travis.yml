@@ -5,6 +5,7 @@ compiler:
   - clang
 
 before_script:
+  - sudo apt-get install -y libboost-all-dev libpcap-dev
   - mkdir build
   - cd build
   - cmake ..

@@ -53,7 +53,7 @@ install(PROGRAMS services/wfb_bridge.service DESTINATION etc/systemd/system)
 install(PROGRAMS services/wifi_config.service DESTINATION etc/systemd/system)
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS python3-udev libpcap-0.8)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS python3-udev libpcap0.8)
 
 # Add rules to build a debian package
 install(TARGETS wfb_bridge
