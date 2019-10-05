@@ -6,7 +6,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Define some default CFLAGS
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -DBOOST_LOG_DYN_LINK")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -DNDEBUG -DBOOST_LOG_DYN_LINK")
 
 # Add the local include directory to the include path
 include_directories(${PROJECT_SOURCE_DIR}/include)
