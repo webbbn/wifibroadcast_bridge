@@ -311,14 +311,15 @@ int main(int argc, const char** argv) {
 
       // Create the FEC encoder if requested.
       std::shared_ptr<FECEncoder> enc;
-      LinkType link_type = DATA_LINK;
       if ((type == "data") && (nblocks > 0) && (nfec_blocks > 0) && (blocksize > 0)) {
 	enc.reset(new FECEncoder(nblocks, nfec_blocks, blocksize));
-	link_type = DATA_LINK;
+	opts.link_type = DATA_LINK;
       } else if (type == "short") {
-	link_type = SHORT_DATA_LINK;
+	opts.link_type = SHORT_DATA_LINK;
       } else if (type == "rts") {
-	link_type = RTS_DATA_LINK;
+	opts.link_type = RTS_DATA_LINK;
+      } else {
+	opts.link_type = DATA_LINK;
       }
 
       // Try to open the UDP socket.
@@ -409,18 +410,12 @@ int main(int argc, const char** argv) {
       uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
 
       // Create the FEC decoder if requested.
-      std::shared_ptr<FECDecoder> enc;
-      LinkType link_type = DATA_LINK;
+      std::shared_ptr<FECDecoder> dec;
       if ((type == "data") && (nblocks > 0) && (nfec_blocks > 0) && (blocksize > 0)) {
-	enc.reset(new FECDecoder());
-	link_type = DATA_LINK;
-      } else if (type == "short") {
-	link_type = SHORT_DATA_LINK;
-      } else if (type == "rts") {
-	link_type = RTS_DATA_LINK;
+	dec.reset(new FECDecoder());
       }
 
-      udp_out[port].reset(new UDPDestination(outport, hostname, enc));
+      udp_out[port].reset(new UDPDestination(outport, hostname, dec));
     }
   }
 
