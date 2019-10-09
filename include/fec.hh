@@ -153,6 +153,9 @@ struct FECDecoderStats {
   size_t bytes;
 };
 
+FECDecoderStats operator-(const FECDecoderStats& s1, const FECDecoderStats &s2);
+FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2);
+
 class FECDecoder {
 public:
 

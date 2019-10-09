@@ -6,6 +6,7 @@
 FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size) :
   m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_seq_num(0) {
   // Ensure that the FEC library is initialized
+  // This may not work with multiple threads!
   fec_init();
 }
 
@@ -25,7 +26,7 @@ void FECEncoder::add_block(std::shared_ptr<FECBlock> block) {
   m_out_blocks.push(block);
 
   // Calculate the FEC blocks when we've received enough blocks.
-  if (h->block == (m_num_blocks - 1)) {
+  if ((m_num_fec_blocks > 0) && (h->block == (m_num_blocks - 1))) {
     encode_blocks();
   }
 }
@@ -211,4 +212,24 @@ std::shared_ptr<FECBlock> FECDecoder::get_block() {
   std::shared_ptr<FECBlock> ret = m_out_blocks.front();
   m_out_blocks.pop();
   return ret;
+}
+
+FECDecoderStats operator-(const FECDecoderStats& s1, const FECDecoderStats &s2) {
+  FECDecoderStats ret;
+  ret.total_blocks = s1.total_blocks - s2.total_blocks;
+  ret.total_packets = s1.total_packets - s2.total_packets;
+  ret.dropped_blocks = s1.dropped_blocks - s2.dropped_blocks;
+  ret.dropped_packets = s1.dropped_packets - s2.dropped_packets;
+  ret.lost_sync = s1.lost_sync - s2.lost_sync;
+  ret.bytes = s1.bytes - s2.bytes;
+}
+
+FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2) {
+  FECDecoderStats ret;
+  ret.total_blocks = s1.total_blocks + s2.total_blocks;
+  ret.total_packets = s1.total_packets + s2.total_packets;
+  ret.dropped_blocks = s1.dropped_blocks + s2.dropped_blocks;
+  ret.dropped_packets = s1.dropped_packets + s2.dropped_packets;
+  ret.lost_sync = s1.lost_sync + s2.lost_sync;
+  ret.bytes = s1.bytes + s2.bytes;
 }

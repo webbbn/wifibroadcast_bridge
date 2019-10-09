@@ -69,8 +69,8 @@ static uint8_t ieee_header_data[] = {
   0x08, 0x02, 0x00, 0x00, // frame control field (2bytes), duration (2 bytes)
   0x01, 0x00, 0x00, 0x00, 0x00, 0x00, // port = 1st byte of IEEE802.11 RA (mac) must be something
   // odd (wifi hardware determines broadcast/multicast through odd/even check)
-  0x13, 0x22, 0x33, 0x44, 0x55, 0x66, // receiver mac address (last byte is port + link type)
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // transmitter mac address (1-4 seq num 5-6 udp port)
+  0x13, 0x22, 0x33, 0x44, 0x55, 0x66, // receiver mac address
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // transmitter mac address
   0x00, 0x00 // IEEE802.11 seqnum, (will be overwritten later by Atheros firmware/wifi chip)
 };
 
@@ -112,7 +112,7 @@ bool detect_network_devices(std::vector<std::string> &ifnames) {
  *****************************************************************************/
 
 RawSendSocket::RawSendSocket(bool ground, uint32_t send_buffer_size, uint32_t max_packet) :
-  m_ground(ground), m_max_packet(max_packet), m_seq_num(0) {
+  m_ground(ground), m_max_packet(max_packet) {
 
   // Create the send buffer with the appropriate headers.
   m_hdr_len = sizeof(radiotap_header) + sizeof(ieee_header_data);
@@ -254,12 +254,6 @@ bool RawSendSocket::send(size_t msglen, uint8_t port, LinkType type,
   m_send_buf[10] = mcs_known;
   m_send_buf[11] = mcs_flags;
 
-  // Set the sequence number
-  ++m_seq_num;
-  uint32_t *seq_num_ptr =
-    reinterpret_cast<uint32_t*>(m_send_buf.data() + sizeof(radiotap_header) + 16);
-  *seq_num_ptr = m_seq_num;
-
   // Set the port in the header
   m_send_buf[sizeof(radiotap_header) + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
 
@@ -357,7 +351,6 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
     break;
   case 0x02: // data
     m_n80211HeaderLength = 0x18;
-    msg.seq_num = *reinterpret_cast<const uint32_t*>(pcap_packet_data + 16);
     break;
   default:
     break;
@@ -415,48 +408,6 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
   msg.data.resize(packet_len);
   std::copy(pcap_packet_data + header_len, pcap_packet_data + header_len + packet_len,
 	    msg.data.begin());
-
-  // Validate the sequence number.
-  if (m_stats.packets == 0) {
-    m_stats.prev_good_seq_num = msg.seq_num;
-  } else if (msg.seq_num == (m_stats.seq_num + 1)) {
-    // This is what we want
-    ++m_stats.good_packets;
-    m_stats.cur_error_count = 0;
-    m_stats.prev_good_seq_num = msg.seq_num;
-  } else if (msg.seq_num > m_stats.prev_good_seq_num) {
-    uint32_t diff = msg.seq_num - m_stats.prev_good_seq_num;
-    if (diff < 5) {
-      // This likely means we dropped a few packets.
-      m_stats.dropped_packets += (diff - 1);
-      m_stats.cur_error_count = 0;
-      m_stats.prev_good_seq_num = msg.seq_num;
-    } else {
-      // Something's wrong. Just drop this packet until we get enough to force a resync.
-      ++m_stats.error_packets;
-      ++m_stats.cur_error_count;
-      if (m_stats.cur_error_count > 5) {
-	// Resync
-	m_stats.cur_error_count = 0;
-	m_stats.prev_good_seq_num = msg.seq_num;
-	++m_stats.resets;
-      }
-    }
-  } else {
-    // Something's wrong. Just drop this packet until we get enough to force a resync.
-    ++m_stats.error_packets;
-    ++m_stats.cur_error_count;
-    if (m_stats.cur_error_count > 5) {
-      // Resync
-      m_stats.cur_error_count = 0;
-      m_stats.prev_good_seq_num = msg.seq_num;
-      ++m_stats.resets;
-    }
-  }
-  m_stats.seq_num = msg.seq_num;
-  ++m_stats.packets;
-  m_stats.bytes += packet_len;
-
 
   return true;
 }
