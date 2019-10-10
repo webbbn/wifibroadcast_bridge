@@ -158,45 +158,46 @@ class Network(object):
         #         logging.error(e)
         #         return None
 
-        # Bring up the card in monitor mode
+        # Make sure this card is down
         try:
-            pyw.modeset(card, 'monitor')
-        except pyric.error as e:
-            logging.error(interface + " does not support monitor mode")
-            return None
+            os.system("ip link set " + card.dev + " down")
+        except Exception as e:
+            logging.error("Error bringing the interface down: " + card.dev)
+            logging.error(e)
+            return False
 
-        # Try to configure the transmit power level (some cards don't support this)
+        # Configure the card in monitor mode
         try:
-            pyw.txset(card, txpower, 'fixed')
+            os.system("iw dev " + card.dev + " set type monitor")
         except pyric.error as e:
-            os.system("iw dev " + card.dev + " set txpower fixed " + str(txpower))
+            logging.error(card.dev + " does not support monitor mode")
+            return None
 
         # Bring the interface up
         try:
-            pyw.up(card)
-        except pyric.error as e:
-            logging.error("Error bringing up the interface: " + card.dev)
+            os.system("ip link set " + card.dev + " up")
+        except Exception as e:
+            logging.error("Error bringing the interface down: " + card.dev)
+            logging.error(e)
+            return False
+
+        # Configure the transmit power level (some cards don't support this)
+        try:
+            os.system("iw " + card.dev + " set txpower fixed " + str(txpower) * 100)
+        except Exception as e:
+            logging.error("Error setting txpower on: " + card.dev)
             logging.error(e)
             return False
 
         # Configure the frequency
         try:
-            logging.debug("Setting the frequency on interface " + interface + " to " + str(frequency))
-            pyw.freqset(card, frequency, None)
-            error = False
-
-        except pyric.error as e:
-            error = True
-
-        # Try to configure the frequency using iwconfig
-        if error:
-            try:
-                logging.debug("Setting the frequency on interface " + interface + " to " + str(frequency) + " using iwconfig")
-                os.system("iwconfig %s freq %sM" % (card.dev, str(frequency)))
-            except Exception as e:
-                logging.error("Error setting the wifi frequency on: " + card.dev)
-                logging.error(e)
-                return False
+            logging.debug("Setting the frequency on interface " + interface + " to " +
+                          str(frequency) + " using iw")
+            os.system("iw %s set freq %sM" % (card.dev, str(frequency)))
+        except Exception as e:
+            logging.error("Error setting the wifi frequency on: " + card.dev)
+            logging.error(e)
+            return False
 
         # Add this to the list of interfaces
         logging.debug("Configured: %s" % (interface))
