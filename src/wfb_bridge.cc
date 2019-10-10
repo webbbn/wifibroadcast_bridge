@@ -518,7 +518,7 @@ int main(int argc, const char** argv) {
 	    max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
 	    // Transmit any packets that are finished in the encoder.
 	    for (block = dec->get_block(); block; block = dec->get_block()) {
-	      // If the link slower than the data rate we need to drop some packets.
+	      // If the link is slower than the data rate we need to drop some packets.
 	      if (block->is_fec_block() & (dec->n_output_blocks() > max_queue_size)) {
 		++dropped_blocks;
 		continue;
