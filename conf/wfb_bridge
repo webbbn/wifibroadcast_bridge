@@ -1,6 +1,6 @@
 [global]
 mode = air
-loglevel = info
+loglevel = critical
 sysloglevel = info
 sysloghost = localhost
 maxqueuesize = 80
