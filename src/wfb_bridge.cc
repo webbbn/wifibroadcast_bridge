@@ -207,8 +207,8 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 	}
       }
       LOG_INFO
-	<< "blk: " << s.total_blocks << "/" << s.dropped_blocks
-	<< "  seq: " << s.total_packets << "/" << s.dropped_packets
+	<< "blk: " << s.total_packets << "/" << s.dropped_packets
+	<< "  seq: " << s.total_blocks << "/" << s.dropped_blocks
 	<< "  lost sync: " << s.lost_sync
 	<< "  rate: " << static_cast<double>(s.bytes) * 8e-6 / dur << " Mbps"
 	<< "  RSSI: " << static_cast<int16_t>(rssi_stats.mean())
