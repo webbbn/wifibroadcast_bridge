@@ -1,5 +1,5 @@
 [global]
-mode = ground
+mode = air
 loglevel = info
 sysloglevel = info
 sysloghost = localhost
@@ -11,7 +11,7 @@ direction = down
 port = 1
 inport = 5600
 outport = 5600
-outhost = 192.168.1.38
+outhost = 192.168.5.136
 blocksize = 1500
 blocks = 8
 fec = 4
@@ -64,7 +64,7 @@ direction = down
 port = 6
 inport = 5700
 outport = 5700
-outhost = 192.168.1.38
+outhost = 192.168.5.136
 type = data
 priority = 1
 mcs = 1

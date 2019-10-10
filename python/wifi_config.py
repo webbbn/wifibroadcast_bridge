@@ -193,7 +193,7 @@ class Network(object):
         try:
             logging.debug("Setting the frequency on interface " + interface + " to " +
                           str(frequency) + " using iw")
-            os.system("iw %s set freq %sM" % (card.dev, str(frequency)))
+            os.system("iw %s set freq %s" % (card.dev, str(frequency)))
         except Exception as e:
             logging.error("Error setting the wifi frequency on: " + card.dev)
             logging.error(e)
