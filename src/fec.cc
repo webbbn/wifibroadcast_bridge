@@ -77,12 +77,13 @@ FECDecoder::FECDecoder() : m_block_size(0) {
 void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   std::shared_ptr<FECBlock> blk(new FECBlock(buf, block_length));
   ++m_stats.total_blocks;
+  m_stats.bytes += block_length;
   const FECHeader &h = *blk->header();
   FECHeader &ph = m_prev_header;
   uint16_t unrolled_prev_seq = static_cast<uint16_t>(ph.seq_num);
   uint16_t unrolled_seq = static_cast<uint16_t>(h.seq_num);
   if (unrolled_prev_seq > unrolled_seq) {
-    unrolled_prev_seq += 256;
+    unrolled_seq += 256;
   }
 
   // Did we reach the end of a sequence without getting enough blocks?
@@ -92,27 +93,27 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
     m_stats.dropped_packets += unrolled_seq - unrolled_prev_seq;
 
     // Calculate how many packets we dropped.
-    uint32_t pseq = unrolled_prev_seq * h.n_blocks + ph.block;
+    uint32_t pseq = unrolled_prev_seq * ph.n_blocks + ph.block;
     uint32_t seq = unrolled_seq * h.n_blocks + h.block;
-    uint32_t diff = seq - pseq;
-    m_stats.dropped_blocks += diff;
+    if (pseq < seq) {
+      m_stats.dropped_blocks += seq - pseq;
+    }
 
     // Reset the sequence.
     m_block_size = 0;
-  }
-
-  // Are we starting from a reset or a completed block?
-  if (m_block_size == 0) {
-
-    // Initialize the previous packet header to the start of this sequence.
-    ph = h;
-    ph.block = 0;
     m_blocks.clear();
     m_fec_blocks.clear();
+  }
+  ph = h;
+
+  // Have we completed the current block?
+  if ((m_block_size == 0) && (unrolled_prev_seq == unrolled_seq)) {
+    return;
   }
 
   // The current block size is equal to the block size of the largest block.
   m_block_size = std::max(m_block_size, blk->block_size());
+
   // Is this a data block or FEC block?
   if (blk->is_data_block()) {
 
@@ -122,12 +123,14 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
     // Release the block if we don't have a gap.
     if ((m_blocks.size() - 1) == h.block) {
       m_out_blocks.push(blk);
-      m_stats.bytes += h.length;
     }
 
     // Have we reached the end of the data blocks without dropping a packet?
     if (m_blocks.size() == h.n_blocks) {
       m_block_size = 0;
+      m_blocks.clear();
+      m_fec_blocks.clear();
+      ++m_stats.total_packets;
     }
 
   } else {
@@ -136,14 +139,16 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
     m_fec_blocks.push_back(blk);
 
     // Decode once we've received anough blocks + FEC blocks and have dropped a block.
-    if ((m_blocks.size() + m_fec_blocks.size()) == ph.n_blocks) {
+    if ((m_blocks.size() + m_fec_blocks.size()) == h.n_blocks) {
 
       // Decode the sequence
       decode();
-      ++m_stats.total_packets;
 
       // Start waiting for blocks from the next packet.
-      m_block_size == 0;
+      m_block_size = 0;
+      m_blocks.clear();
+      m_fec_blocks.clear();
+      ++m_stats.total_packets;
     }
   }
 }
@@ -197,7 +202,6 @@ void FECDecoder::decode() {
     uint16_t length = blocks[i]->data_length();
     if (length <= m_block_size) {
       m_out_blocks.push(blocks[i]);
-      m_stats.bytes += length;
     } else {
       ++m_stats.dropped_blocks;
     }
@@ -222,6 +226,7 @@ FECDecoderStats operator-(const FECDecoderStats& s1, const FECDecoderStats &s2) 
   ret.dropped_packets = s1.dropped_packets - s2.dropped_packets;
   ret.lost_sync = s1.lost_sync - s2.lost_sync;
   ret.bytes = s1.bytes - s2.bytes;
+  return ret;
 }
 
 FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2) {
@@ -232,4 +237,5 @@ FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2) 
   ret.dropped_packets = s1.dropped_packets + s2.dropped_packets;
   ret.lost_sync = s1.lost_sync + s2.lost_sync;
   ret.bytes = s1.bytes + s2.bytes;
+  return ret;
 }

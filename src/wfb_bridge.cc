@@ -46,7 +46,8 @@ Logger::LoggerP Logger::g_logger;
 std::string hostname_to_ip(const std::string &hostname);
 
 struct WifiOptions {
-  WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18, bool m = false, bool s = false, bool l = false) :
+  WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18, bool m = false,
+	      bool s = false, bool l = false) :
     link_type(type), data_rate(rate), mcs(m), stbc(s), ldpc(l) { }
   LinkType link_type;
   uint8_t data_rate;
@@ -69,7 +70,7 @@ struct Message {
 
 struct UDPDestination {
   UDPDestination(uint16_t port, const std::string &hostname, std::shared_ptr<FECDecoder> enc) :
-    fec(enc), prev_stats(new FECDecoderStats()) {
+    fec(enc) {
 
     // Initialize the UDP output socket.
     memset(&s, '\0', sizeof(struct sockaddr_in));
@@ -88,7 +89,7 @@ struct UDPDestination {
   }
   struct sockaddr_in s;
   std::shared_ptr<FECDecoder> fec;
-  std::shared_ptr<FECDecoderStats> prev_stats;
+  FECDecoderStats prev_stats;
 };
 
 std::string hostname_to_ip(const std::string &hostname) {
@@ -171,7 +172,6 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 
     // Pull the next block off the message queue.
     std::shared_ptr<monitor_message_t> msg = inqueue.pop();
-
     // Lookup the destination class.
     if (!udp_out[msg->port]) {
       LOG_ERROR << "Error finding the output destination for port " << int(msg->port);
@@ -201,15 +201,19 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
       // Accumulate the FEC stats from each port.
       FECDecoderStats s;
       for (auto dest : udp_out) {
-	s = s + (dest->fec->stats() - *dest->prev_stats);
-	*dest->prev_stats = dest->fec->stats();
+	if (dest) {
+	  s = s + (dest->fec->stats() - dest->prev_stats);
+	  dest->prev_stats = dest->fec->stats();
+	}
       }
       LOG_INFO
-	<< s.total_blocks << "/" << s.dropped_blocks << " blks  "
-	<< s.total_packets << "/" << s.dropped_packets << " seq  "
-	<< s.lost_sync << " lost sync  "
-	<< s.bytes << " bytes  "
-	<< static_cast<double>(s.bytes) * 8e-6 / dur << " Mbps";
+	<< "blk: " << s.total_blocks << "/" << s.dropped_blocks
+	<< "  seq: " << s.total_packets << "/" << s.dropped_packets
+	<< "  lost sync: " << s.lost_sync
+	<< "  rate: " << static_cast<double>(s.bytes) * 8e-6 / dur << " Mbps"
+	<< "  RSSI: " << static_cast<int16_t>(rssi_stats.mean())
+	<< " (" << static_cast<int16_t>(rssi_stats.min()) << "/"
+	<< static_cast<int16_t>(rssi_stats.max()) << ")";
     }
   }
 }
@@ -424,10 +428,7 @@ int main(int argc, const char** argv) {
       uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
 
       // Create the FEC decoder if requested.
-      std::shared_ptr<FECDecoder> dec;
-      if ((type == "data") && (nblocks > 0) && (nfec_blocks > 0) && (blocksize > 0)) {
-	dec.reset(new FECDecoder());
-      }
+      std::shared_ptr<FECDecoder> dec(new FECDecoder());
 
       udp_out[port].reset(new UDPDestination(outport, hostname, dec));
     }

@@ -173,7 +173,7 @@ public:
 private:
   // The block size of the current sequence (0 on restart)
   uint16_t m_block_size;
-  // The previous header received
+  // The previous sequence number
   FECHeader m_prev_header;
   // The blocks that have been received previously for this sequence
   std::vector<std::shared_ptr<FECBlock> > m_blocks;

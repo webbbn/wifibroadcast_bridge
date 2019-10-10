@@ -1,6 +1,6 @@
 [global]
-mode = air
-loglevel = critical
+mode = ground
+loglevel = info
 sysloglevel = info
 sysloghost = localhost
 maxqueuesize = 80
@@ -11,7 +11,7 @@ direction = down
 port = 1
 inport = 5600
 outport = 5600
-outhost = 192.168.1.137
+outhost = 192.168.1.38
 blocksize = 1500
 blocks = 8
 fec = 4
@@ -64,7 +64,35 @@ direction = down
 port = 6
 inport = 5700
 outport = 5700
-outhost = 192.168.1.137
+outhost = 192.168.1.38
+type = data
+priority = 1
+mcs = 1
+stbc = 1
+ldpc = 1
+datarate = 18
+
+[video_column_fec]
+name = Video Downlink ProMpeg Column FECs
+direction = down
+port = 7
+inport = 5702
+outport = 5702
+outhost = 192.168.5.136
+type = data
+priority = 1
+mcs = 1
+stbc = 1
+ldpc = 1
+datarate = 18
+
+[video_row_fec]
+name = Video Downlink ProMpeg Row FECs
+direction = down
+port = 8
+inport = 5704
+outport = 5704
+outhost = 192.168.5.136
 type = data
 priority = 1
 mcs = 1
