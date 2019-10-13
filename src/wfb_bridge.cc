@@ -262,7 +262,7 @@ int main(int argc, const char** argv) {
   std::string log_level = conf.get<std::string>("global.loglevel", "info");
   std::string syslog_level = conf.get<std::string>("global.sysloglevel", "info");
   std::string syslog_host = conf.get<std::string>("global.sysloghost", "localhost");
-  uint16_t max_queue_size = conf.get<uint16_t>("global.max_queue_size", 80);
+  uint16_t max_queue_size = conf.get<uint16_t>("global.maxqueuesize", 200);
 
   // Create the logger
   Logger::create(log_level, syslog_level, syslog_host);
@@ -359,8 +359,8 @@ int main(int argc, const char** argv) {
 		       outqueue.push(msg);
 		     }
 		     // If the link goes down the output queue could fill up forever.
-		     // Make sure that doesn't happen.
-		     while (outqueue.size() > 100000) {
+		     // Make sure that doesn't happen. This is the last line of defense.
+		     while (outqueue.size() > 10000) {
 		       outqueue.pop();
 		     }
 		   }
@@ -493,6 +493,7 @@ int main(int argc, const char** argv) {
 	size_t nblocks = 0;
 	size_t max_pkt = 0;
 	size_t dropped_blocks = 0;
+	size_t max_queue = 0;
 
 	// Send message out of the send queue
 	while(!terminate) {
@@ -502,10 +503,9 @@ int main(int argc, const char** argv) {
 	  if (msg->msg.size() == 0) {
 	    continue;
 	  }
-	  
-	  double loop_start = cur_time();
 
 	  // FEC encode the packet if requested.
+	  double loop_start = cur_time();
 	  if (msg->enc) {
 	    auto dec = msg->enc;
 	    // Get a FEC encoder block
@@ -516,10 +516,11 @@ int main(int argc, const char** argv) {
 	    dec->add_block(block);
 	    enc_time += (cur_time() - loop_start);
 	    max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
+	    max_queue = std::max(max_queue, outqueue.size() + dec->n_output_blocks());
 	    // Transmit any packets that are finished in the encoder.
 	    for (block = dec->get_block(); block; block = dec->get_block()) {
 	      // If the link is slower than the data rate we need to drop some packets.
-	      if (block->is_fec_block() & (dec->n_output_blocks() > max_queue_size)) {
+	      if (block->is_fec_block() & ((outqueue.size() + dec->n_output_blocks()) > max_queue_size)) {
 		++dropped_blocks;
 		continue;
 	      }
@@ -548,6 +549,7 @@ int main(int argc, const char** argv) {
 	  if (dur > 2.0) {
 	    LOG_INFO << "Packets/sec: " << int(nblocks / dur)
 		     << " Mbps: " << 8e-6 * count / dur
+		     << " Queue: " << max_queue
 		     << " Dropped: " << dropped_blocks
 		     << " Max packet: " << max_pkt
 		     << " Encode ms: " << 1e+3 * enc_time
@@ -555,7 +557,7 @@ int main(int argc, const char** argv) {
 		     << " Loop time ms: " << 1e3 * loop_time;
 	    start = cur;
 	    count = pkts = nblocks = max_pkt = enc_time = send_time = loop_time =
-	      dropped_blocks = 0;
+	      dropped_blocks = max_queue = 0;
 	  }
 	}
       };

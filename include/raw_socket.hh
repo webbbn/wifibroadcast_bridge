@@ -43,12 +43,6 @@ public:
 
   bool add_device(const std::string &device);
 
-  uint8_t *send_buffer();
-
-  // Send a message from the internal message buffer.
-  bool send(size_t msglen, uint8_t port, LinkType type, uint8_t datarate = 18,
-	    bool mcs = false, bool stbc = false, bool ldpc = false);
-
   // Copy the message into the send bufer and send it.
   bool send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
 	    uint8_t datarate = 18, bool mcs = false, bool stbc = false, bool ldpc = false);
@@ -68,7 +62,6 @@ private:
   int m_sock;
   std::string m_error_msg;
   std::vector<uint8_t> m_send_buf;
-  uint8_t m_hdr_len;
 };
 
 class RawReceiveSocket {

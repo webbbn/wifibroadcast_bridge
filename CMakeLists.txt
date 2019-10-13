@@ -25,6 +25,9 @@ find_package(PCAP)
 # find the pthread library
 find_package(Threads)
 
+# Find the tins library
+find_library(TINS_LIBRARY tins)
+
 # Find the python3 interpreter
 if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
   set(Python_ADDITIONAL_VERSIONS "3")
@@ -39,7 +42,7 @@ endif ()
 # Build the wfb_bridge program
 add_executable(wfb_bridge src/wfb_bridge.cc src/raw_socket.cc src/fec.c src/fec.cc src/radiotap.c src/logging.cc)
 install(TARGETS wfb_bridge DESTINATION usr/bin COMPONENT applications)
-target_link_libraries(wfb_bridge ${Boost_LIBRARIES} pcap pthread)
+target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} ${TINS_LIBRARY} pthread)
 
 # Add rules to install the python executables
 install(PROGRAMS python/wifi_config.py DESTINATION usr/bin COMPONENT applications)

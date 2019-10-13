@@ -21,8 +21,10 @@
 
 #include <raw_socket.hh>
 
+#include <tins/tins.h>
 #include <pcap-bpf.h>
 #include <radiotap.h>
+
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
 #define IEEE80211_RADIOTAP_MCS_HAVE_MCS   0x02
 #define IEEE80211_RADIOTAP_MCS_HAVE_GI    0x04
@@ -51,12 +53,19 @@ typedef struct {
 } monitor_interface_t;
 
 static uint8_t radiotap_header[] = {
-  0x00, 0x00, // <-- radiotap version
-  0x0d, 0x00, // <- radiotap header length
-  0x04, 0x80, 0x08, 0x00, // <-- radiotap present flags (rate (bit 2) + tx flags (bit 15) + mcs flags (bit 19))
-  0x08, // datarate
-  0x00,  // RADIOTAP_F_TX_NOACK
-  0x00, 0x00, 0x00 // bitmap, flags, mcs_index
+  0x00, 0x00, // Radiotap version
+  0x0b, 0x00, // Radiotap header length
+  0x04, 0x80, 0x00, 0x00, // Radiotap present flags (rate (bit 2) + tx flags (bit 15))
+  0x16, // Datarate
+  0x08, 0x00 // RADIOTAP_F_TX_NOACK
+};
+
+static uint8_t radiotap_header_mcs[] = {
+  0x00, 0x00, // Radiotap version (0)
+  0x0d, 0x00, // Radiotap header length
+  0x00, 0x80, 0x08, 0x00, // Radiotap present flags (tx flags (bit 15) + mcs flags (bit 19))
+  0x08, 0x00, // RADIOTAP_F_TX_NOACK
+  0x00, 0x00, 0x00 // MCS: bitmap, flags, mcs_index
 };
 
 static uint8_t u8aIeeeHeader_data_short[] = {
@@ -113,12 +122,10 @@ bool detect_network_devices(std::vector<std::string> &ifnames) {
 
 RawSendSocket::RawSendSocket(bool ground, uint32_t send_buffer_size, uint32_t max_packet) :
   m_ground(ground), m_max_packet(max_packet) {
+  size_t max_header = std::max(sizeof(radiotap_header), sizeof(radiotap_header_mcs));
 
   // Create the send buffer with the appropriate headers.
-  m_hdr_len = sizeof(radiotap_header) + sizeof(ieee_header_data);
-  m_send_buf.resize(m_hdr_len + max_packet);
-  memcpy(m_send_buf.data(), radiotap_header, sizeof(radiotap_header));
-  memcpy(m_send_buf.data() + sizeof(radiotap_header), ieee_header_data, sizeof(ieee_header_data));
+  m_send_buf.resize(max_header + sizeof(ieee_header_data) + max_packet);
 }
 
 bool RawSendSocket::add_device(const std::string &device) {
@@ -190,55 +197,16 @@ bool RawSendSocket::add_device(const std::string &device) {
   return true;
 }
 
-uint8_t *RawSendSocket::send_buffer() {
-  return m_send_buf.data() + m_hdr_len;
-}
-
-bool RawSendSocket::send(size_t msglen, uint8_t port, LinkType type,
+bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
 			 uint8_t datarate, bool mcs, bool stbc, bool ldpc) {
-	    
-  // Set the data rate in the header
-  switch (datarate) {
-  case 1:
-    m_send_buf[8]=0x02;
-    break;
-  case 2:
-    m_send_buf[8]=0x04;
-    break;
-  case 5: // 5.5
-    m_send_buf[8]=0x0b;
-    break;
-  case 6:
-    m_send_buf[8]=0x0c;
-    break;
-  case 11:
-    m_send_buf[8]=0x16;
-    break;
-  case 12:
-    m_send_buf[8]=0x18;
-    break;
-  case 18:
-    m_send_buf[8]=0x24;
-    break;
-  case 24:
-    m_send_buf[8]=0x30;
-    break;
-  case 36:
-    m_send_buf[8]=0x48;
-    break;
-  case 48:
-    m_send_buf[8]=0x60;
-    break;
-  default:
-    std::cerr << "Incorrect rate set.";
-    break;
-  }
 
-  // Set the 802.11n options if requested
-  uint8_t mcs_flags = 0;
-  uint8_t mcs_known = 0;
+  // Construct the radiotap header at the nead of the packet.
+  size_t rt_hlen = 0;
   if (mcs) {
-    mcs_flags = 0;
+    rt_hlen = sizeof(radiotap_header_mcs);
+    memcpy(m_send_buf.data(), radiotap_header_mcs, rt_hlen);
+    uint8_t mcs_flags = 0;
+    uint8_t mcs_known = 0;
     mcs_known = (IEEE80211_RADIOTAP_MCS_HAVE_MCS |
 		 IEEE80211_RADIOTAP_MCS_HAVE_BW |
 		 IEEE80211_RADIOTAP_MCS_HAVE_GI |
@@ -250,21 +218,70 @@ bool RawSendSocket::send(size_t msglen, uint8_t port, LinkType type,
     if(ldpc) {
       mcs_flags = mcs_flags | IEEE80211_RADIOTAP_MCS_FEC_LDPC;
     }
+    m_send_buf[10] = mcs_known;
+    m_send_buf[11] = mcs_flags;
+    m_send_buf[12] = datarate;
+
+  } else {
+    rt_hlen = sizeof(radiotap_header);
+    memcpy(m_send_buf.data(), radiotap_header, rt_hlen);
+
+    // Set the data rate in the header
+    switch (datarate) {
+    case 1:
+      m_send_buf[8]=2;
+      break;
+    case 2:
+      m_send_buf[8]=4;
+      break;
+    case 3:
+      m_send_buf[8]=11;
+      break;
+    case 4:
+      m_send_buf[8]=12;
+      break;
+    case 5:
+      m_send_buf[8]=18;
+      break;
+    case 6:
+      m_send_buf[8]=22;
+      break;
+    case 7:
+      m_send_buf[8]=24;
+      break;
+    case 8:
+      m_send_buf[8]=36;
+      break;
+    case 9:
+      m_send_buf[8]=48;
+      break;
+    case 10:
+      m_send_buf[8]=72;
+      break;
+    case 11:
+      m_send_buf[8]=96;
+      break;
+    case 12:
+      m_send_buf[8]=108;
+      break;
+    default:
+      m_send_buf[8]=22;
+      break;
+    }
   }
-  m_send_buf[10] = mcs_known;
-  m_send_buf[11] = mcs_flags;
+
+  // Copy the 802.11 header onto the head of the packet.
+  size_t ieee_hlen = sizeof(ieee_header_data);
+  memcpy(m_send_buf.data() + rt_hlen, ieee_header_data, ieee_hlen);
 
   // Set the port in the header
-  m_send_buf[sizeof(radiotap_header) + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
+  m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
+
+  // Copy the data into the buffer.
+  memcpy(m_send_buf.data() + rt_hlen + ieee_hlen, msg, msglen);
 
   // Send the packet
-  return (::send(m_sock, m_send_buf.data(), msglen + m_hdr_len, 0) >= 0);
-}
-
-bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
-			 uint8_t datarate, bool mcs, bool stbc, bool ldpc) {
-  memcpy(send_buffer(), msg, msglen);
-  return send(msglen, port, type, datarate, mcs, stbc, ldpc);
+  return (::send(m_sock, m_send_buf.data(), rt_hlen + ieee_hlen + msglen, 0) >= 0);
 }
 
 /******************************************************************************
