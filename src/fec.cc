@@ -95,23 +95,32 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
     // we've obviously lost sync.
     if (unrolled_seq < unrolled_prev_seq) {
       ++m_stats.lost_sync;
-      return;
-    }
+    } else {
 
-    // Calculate how many packets we dropped with this break in the sequence.
-    m_stats.dropped_blocks += unrolled_seq - unrolled_prev_seq;
+      // Calculate how many packets we dropped with this break in the sequence.
+      m_stats.dropped_blocks += unrolled_seq - unrolled_prev_seq;
 
-    // Calculate how many packets we dropped.
-    uint32_t pseq = unrolled_prev_seq * (n_blocks + n_fec_blocks) + ph.block;
-    uint32_t seq = unrolled_seq * (n_blocks + n_fec_blocks) + h.block;
-    if (pseq < seq) {
-      m_stats.dropped_packets += seq - pseq;
+      // Calculate how many packets we dropped.
+      uint64_t pbn = unrolled_prev_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + ph.block;
+      uint64_t bn = unrolled_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + h.block;
+      if (pbn < bn) {
+	m_stats.dropped_packets += bn - pbn;
+      }
     }
 
     // Reset the sequence.
     m_block_size = 0;
     m_blocks.clear();
     m_fec_blocks.clear();
+
+  } else if(h.block <= ph.block) {
+
+    // This shouldn't happen.
+    ++m_stats.dropped_packets;
+  } else {
+
+    // Record any dropped packets from the last packet.
+    m_stats.dropped_packets += (h.block - ph.block) - 1;
   }
   ph = h;
 
