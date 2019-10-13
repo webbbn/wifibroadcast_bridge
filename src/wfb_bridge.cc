@@ -508,6 +508,7 @@ int main(int argc, const char** argv) {
 	size_t max_pkt = 0;
 	size_t dropped_blocks = 0;
 	size_t max_queue = 0;
+	size_t flushes = 0;
 
 	// Send message out of the send queue
 	while(!terminate) {
@@ -519,20 +520,27 @@ int main(int argc, const char** argv) {
 	  // FEC encode the packet if requested.
 	  double loop_start = cur_time();
 	  if (msg->enc) {
-	    auto dec = msg->enc;
-	    // Get a FEC encoder block
-	    std::shared_ptr<FECBlock> block = dec->get_next_block(msg->msg.size());
-	    // Copy the data into the block
-	    std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
-	    // Pass it off to the FEC encoder.
-	    dec->add_block(block);
+	    auto enc = msg->enc;
+	    // Flush the encoder if necessary.
+	    if (flush) {
+	      enc->flush();
+	      ++flushes;
+	    } else {
+	      // Get a FEC encoder block
+	      std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
+	      // Copy the data into the block
+	      std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
+	      // Pass it off to the FEC encoder.
+	      enc->add_block(block);
+	    }
 	    enc_time += (cur_time() - loop_start);
 	    max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
-	    max_queue = std::max(max_queue, outqueue.size() + dec->n_output_blocks());
+	    max_queue = std::max(max_queue, outqueue.size() + enc->n_output_blocks());
 	    // Transmit any packets that are finished in the encoder.
-	    for (block = dec->get_block(); block; block = dec->get_block()) {
+	    for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
+		 block = enc->get_block()) {
 	      // If the link is slower than the data rate we need to drop some packets.
-	      if (block->is_fec_block() & ((outqueue.size() + dec->n_output_blocks()) > max_queue_size)) {
+	      if (block->is_fec_block() & ((outqueue.size() + enc->n_output_blocks()) > max_queue_size)) {
 		++dropped_blocks;
 		continue;
 	      }
@@ -563,13 +571,14 @@ int main(int argc, const char** argv) {
 		     << " Mbps: " << 8e-6 * count / dur
 		     << " Queue: " << max_queue
 		     << " Dropped: " << dropped_blocks
-		     << " Max packet: " << max_pkt
-		     << " Encode ms: " << 1e+3 * enc_time
-		     << " Send ms: " << 1e+3 * send_time
-		     << " Loop time ms: " << 1e3 * loop_time;
+		     << " Max_packet: " << max_pkt
+		     << " Enc_ms: " << 1e+3 * enc_time
+		     << " Send_ms: " << 1e+3 * send_time
+		     << " Loop_ms: " << 1e3 * loop_time
+		     << " Flushes/sec " << int(flushes / dur);
 	    start = cur;
 	    count = pkts = nblocks = max_pkt = enc_time = send_time = loop_time =
-	      dropped_blocks = max_queue = 0;
+	      dropped_blocks = max_queue = flushes = 0;
 	  }
 	}
       };
