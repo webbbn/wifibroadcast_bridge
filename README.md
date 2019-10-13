@@ -8,7 +8,7 @@ Based on code and ideas from the [OpenHD](https://github.com/HD-Fpv/Open.HD "Ope
 ## Installing dependencies
 
 ~~~
-sudo apt-get install -y libboost-all-dev libpcap-dev python3-udev libpcap-0.8
+sudo apt-get install -y libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev
 ~~~
 
 ## Compiling the software
@@ -23,14 +23,14 @@ make
 ### Install to a local directory
 
 ~~~
-cmake -DCMAKE_INSTALL_PREFIX=<install directory>
+cmake -DCMAKE_INSTALL_PREFIX=<install directory> ..
 make install
 ~~~
 
 ### Install into system directories
 
 ~~~
-cmake -DCMAKE_INSTALL_PREFIX=/
+cmake -DCMAKE_INSTALL_PREFIX=/ ..
 sudo make install
 ~~~
 
