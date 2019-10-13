@@ -21,7 +21,6 @@
 
 #include <raw_socket.hh>
 
-#include <tins/tins.h>
 #include <pcap-bpf.h>
 #include <radiotap.h>
 
