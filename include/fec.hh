@@ -132,6 +132,9 @@ public:
     return m_out_blocks.size();
   }
 
+  // Complete the sequence with the current set of blocks
+  void flush();
+
 private:
   uint8_t m_seq_num;
   uint8_t m_num_blocks;

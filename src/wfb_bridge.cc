@@ -123,6 +123,12 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname = "") {
   int optval = 1;
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
 
+  // Set a timeout to ensure that the end of a frame gets flushed
+  struct timeval tv;
+  tv.tv_sec = 0;
+  tv.tv_usec = 1000; // 1 ms
+  setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
   // Find to the receive port
   struct sockaddr_in saddr;
   bzero((char *)&saddr, sizeof(saddr));
@@ -350,21 +356,29 @@ int main(int argc, const char** argv) {
 
       // Create the receive thread for this socket
       auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue]() {
-		   while (1) {
-		     std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts,
-							      enc));
-		     size_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
-		     if (count > 0) {
-		       msg->msg.resize(count);
-		       outqueue.push(msg);
-		     }
-		     // If the link goes down the output queue could fill up forever.
-		     // Make sure that doesn't happen. This is the last line of defense.
-		     while (outqueue.size() > 10000) {
-		       outqueue.pop();
-		     }
-		   }
-		 };
+	bool flushed = true;
+	while (1) {
+	  std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+	  ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
+	  if (count <= 0) {
+	    if(flushed) {
+	      continue;
+	    }
+	    // Indicate a flush by putting an empty message on the queue
+	    count = 0;
+	    flushed = true;
+	  } else {
+	    flushed = false;
+	  }
+	  msg->msg.resize(count);
+	  outqueue.push(msg);
+	  // If the link goes down the output queue could fill up forever.
+	  // Make sure that doesn't happen. This is the last line of defense.
+	  while (outqueue.size() > 10000) {
+	    outqueue.pop();
+	  }
+	}
+      };
       thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
     }    
   }
@@ -500,9 +514,7 @@ int main(int argc, const char** argv) {
 
 	  // Pull the next packet off the queue
 	  std::shared_ptr<Message> msg = outqueue.pop();
-	  if (msg->msg.size() == 0) {
-	    continue;
-	  }
+	  bool flush = (msg->msg.size() == 0);
 
 	  // FEC encode the packet if requested.
 	  double loop_start = cur_time();
@@ -531,7 +543,7 @@ int main(int argc, const char** argv) {
 	      ++nblocks;
 	    }
 	    send_time += cur_time() - loop_start;
-	  } else {
+	  } else if(!flush) {
 	    double send_start = cur_time();
 	    if (!raw_send_sock.send(msg->msg, msg->port, msg->opts.link_type)) {
 	      LOG_ERROR << "Error sending a packet on the raw socket";

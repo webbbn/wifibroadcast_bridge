@@ -22,9 +22,6 @@ void FECEncoder::add_block(std::shared_ptr<FECBlock> block) {
   h->block = m_in_blocks.size();
   m_in_blocks.push_back(block);
 
-  // This block can go out immediately.
-  m_out_blocks.push(block);
-
   // Calculate the FEC blocks when we've received enough blocks.
   if ((m_num_fec_blocks > 0) && (h->block == (m_num_blocks - 1))) {
     encode_blocks();
@@ -41,20 +38,32 @@ std::shared_ptr<FECBlock> FECEncoder::get_block() {
   return ret;
 }
 
+// Complete the sequence with the current set of blocks
+void FECEncoder::flush() {
+  encode_blocks();
+}
+
 void FECEncoder::encode_blocks() {
+  uint8_t num_blocks = m_in_blocks.size();
+  if (num_blocks == 0) {
+    return;
+  }
 
   // Create the FEC arrays of pointers to the data blocks.
   std::vector<uint8_t*> data_blocks(m_num_blocks);
   uint16_t block_size = 0;
-  for (uint8_t i = 0; i < m_num_blocks; ++i) {
-    data_blocks[i] = m_in_blocks[i]->fec_data();
-    block_size = std::max(block_size, static_cast<uint16_t>(m_in_blocks[i]->header()->length + 2));
+  for (uint8_t i = 0; i < num_blocks; ++i) {
+    std::shared_ptr<FECBlock> block = m_in_blocks[i];
+    data_blocks[i] = block->fec_data();
+    block_size = std::max(block_size, static_cast<uint16_t>(block->header()->length + 2));
+    block->header()->n_blocks = num_blocks;
+    m_out_blocks.push(block);
   }
 
   // Create the output FEC blocks
   std::vector<uint8_t*> fec_blocks(m_num_fec_blocks);
   for (uint8_t i = 0; i < m_num_fec_blocks; ++i) {
-    std::shared_ptr<FECBlock> block(new FECBlock(m_seq_num, m_num_blocks + i, m_num_blocks,
+    std::shared_ptr<FECBlock> block(new FECBlock(m_seq_num, num_blocks + i, num_blocks,
 						 m_num_fec_blocks, block_size - 2));
     fec_blocks[i] = block->fec_data();
     block->pkt_length(block_size + sizeof(FECHeader) - 2);
@@ -62,13 +71,12 @@ void FECEncoder::encode_blocks() {
   }
 
   // Encode the blocks.
-  fec_encode(block_size, data_blocks.data(), m_num_blocks, fec_blocks.data(), m_num_fec_blocks);
+  fec_encode(block_size, data_blocks.data(), num_blocks, fec_blocks.data(), m_num_fec_blocks);
 
   // Prepare for the next set of blocks.
   ++m_seq_num;
   m_in_blocks.clear();
 }
-
 
 FECDecoder::FECDecoder() : m_block_size(0) {
   fec_init();
