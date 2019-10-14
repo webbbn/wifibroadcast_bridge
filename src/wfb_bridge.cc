@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <netinet/ether.h>
 #include <netpacket/packet.h>
 #include <net/if.h>
@@ -70,7 +72,7 @@ struct Message {
 
 struct UDPDestination {
   UDPDestination(uint16_t port, const std::string &hostname, std::shared_ptr<FECDecoder> enc) :
-    fec(enc) {
+    fec(enc), fdout(0) {
 
     // Initialize the UDP output socket.
     memset(&s, '\0', sizeof(struct sockaddr_in));
@@ -87,7 +89,16 @@ struct UDPDestination {
     }
     s.sin_addr.s_addr = inet_addr(ip.c_str());
   }
+  UDPDestination(const std::string &filename, std::shared_ptr<FECDecoder> enc) : fec(enc) {
+    // Try to open the output file
+    fdout = open(filename.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fdout < 0) {
+      LOG_CRITICAL << "Error opening an output file: " << filename;
+      exit(EXIT_FAILURE);
+    }
+  }
   struct sockaddr_in s;
+  int fdout;
   std::shared_ptr<FECDecoder> fec;
   FECDecoderStats prev_stats;
 };
@@ -165,6 +176,7 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 		   int send_sock) {
   double prev_time = cur_time();
   StatsAccumulator<int8_t> rssi_stats;
+  size_t write_errors = 0;
   while (1) {
 
     // Ralink and Atheros both always supply the FCS to userspace, no need to check
@@ -191,8 +203,16 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
     // Output any packets that are finished in the decoder.
     for (std::shared_ptr<FECBlock> block = fec->get_block(); block; block = fec->get_block()) {
       if (block->data_length() > 0) {
-	sendto(send_sock, block->data(), block->data_length(), 0,
-	       (struct sockaddr *)&(udp_out[msg->port]->s), sizeof(struct sockaddr_in));
+	if (udp_out[msg->port]) {
+	  if (udp_out[msg->port]->fdout == 0) {
+	    sendto(send_sock, block->data(), block->data_length(), 0,
+		   (struct sockaddr *)&(udp_out[msg->port]->s), sizeof(struct sockaddr_in));
+	  } else if(udp_out[msg->port]->fdout > 0) {
+	    if (write(udp_out[msg->port]->fdout, block->data(), block->data_length()) <= 0) {
+	      ++write_errors;
+	    }
+	  }
+	}
       }
     }
 
@@ -412,11 +432,15 @@ int main(int argc, const char** argv) {
       // Get the name.
       std::string name = v.second.get<std::string>("name", "");
 
-      // Get the UDP port number (required).
+      // Get the UDP port number or output filename (required).
       uint16_t outport = v.second.get<uint16_t>("outport", 0);
+      std::string outfile;
       if (outport == 0) {
-	LOG_CRITICAL << "No outport specified for " << name;
-	return EXIT_FAILURE;
+	outfile = v.second.get<std::string>("outfile", "");
+	if (outfile == "") {
+	  LOG_CRITICAL << "No outport or outfile specified for " << name;
+	  return EXIT_FAILURE;
+	}
       }
 
       // Get the remote hostname/ip (optional)
@@ -444,7 +468,11 @@ int main(int argc, const char** argv) {
       // Create the FEC decoder if requested.
       std::shared_ptr<FECDecoder> dec(new FECDecoder());
 
-      udp_out[port].reset(new UDPDestination(outport, hostname, dec));
+      if (outport > 0) {
+	udp_out[port].reset(new UDPDestination(outport, hostname, dec));
+      } else {
+	udp_out[port].reset(new UDPDestination(outfile, dec));
+      }
     }
   }
 

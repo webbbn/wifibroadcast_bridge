@@ -96,45 +96,55 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   ++m_stats.total_packets;
   m_stats.bytes += block_length;
 
-  // Did we reach the end of a sequence without getting enough blocks?
-  if ((m_block_size != 0) && (unrolled_prev_seq != unrolled_seq)) {
+  // Are we actively processing a block?
+  if (m_block_size != 0) {
 
-    // If se get a (unrolled) sequence number that is less than the previous sequence number
-    // we've obviously lost sync.
-    if (unrolled_seq < unrolled_prev_seq) {
-      ++m_stats.lost_sync;
+    // Did we reach the end of a sequence without getting enough blocks?
+    if (unrolled_prev_seq != unrolled_seq) {
+
+      // If se get a (unrolled) sequence number that is less than the previous sequence number
+      // we've obviously lost sync.
+      if (unrolled_seq < unrolled_prev_seq) {
+	++m_stats.lost_sync;
+      } else {
+
+	// Calculate how many packets we dropped with this break in the sequence.
+	m_stats.dropped_blocks += unrolled_seq - unrolled_prev_seq;
+
+	// Calculate how many packets we dropped.
+	uint64_t pbn = unrolled_prev_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + ph.block;
+	uint64_t bn = unrolled_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + h.block;
+	if (pbn < bn) {
+	  m_stats.dropped_packets += bn - pbn;
+	}
+      }
+
+      // Reset the sequence.
+      m_block_size = 0;
+      m_blocks.clear();
+      m_fec_blocks.clear();
+
+    } else if(h.block <= ph.block) {
+
+      // This shouldn't happen.
+      ++m_stats.dropped_packets;
     } else {
 
-      // Calculate how many packets we dropped with this break in the sequence.
-      m_stats.dropped_blocks += unrolled_seq - unrolled_prev_seq;
-
-      // Calculate how many packets we dropped.
-      uint64_t pbn = unrolled_prev_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + ph.block;
-      uint64_t bn = unrolled_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + h.block;
-      if (pbn < bn) {
-	m_stats.dropped_packets += bn - pbn;
-      }
+      // Record any dropped packets from the last packet.
+      m_stats.dropped_packets += (h.block - ph.block) - 1;
     }
 
-    // Reset the sequence.
-    m_block_size = 0;
-    m_blocks.clear();
-    m_fec_blocks.clear();
+  } else if (unrolled_prev_seq == unrolled_seq) {
 
-  } else if(h.block <= ph.block) {
-
-    // This shouldn't happen.
-    ++m_stats.dropped_packets;
-  } else {
-
-    // Record any dropped packets from the last packet.
-    m_stats.dropped_packets += (h.block - ph.block) - 1;
+    // Are we skipping past the end if the current block that has been completed?
+    ph = h;
+    return;
   }
   ph = h;
 
-  // Have we completed the current block?
-  if ((m_block_size == 0) && (unrolled_prev_seq == unrolled_seq)) {
-    return;
+  // Record any packets we might have skipped at the beginning of the sequence.
+  if (m_block_size == 0) {
+    m_stats.dropped_packets += h.block;
   }
 
   // The current block size is equal to the block size of the largest block.
@@ -183,6 +193,12 @@ void FECDecoder::decode() {
   const FECHeader &h = *m_blocks[0]->header();
   uint8_t n_blocks = h.n_blocks;
   uint8_t n_fec_blocks = h.n_fec_blocks;
+
+  // Sanity check the number of blocks
+  if (n_blocks > (m_blocks.size() + m_fec_blocks.size())) {
+    ++m_stats.lost_sync;
+    return;
+  }
 
   // Create the vector of data blocks.
   std::vector<uint8_t*> block_ptrs(h.n_blocks, 0);
