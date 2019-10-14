@@ -376,17 +376,18 @@ int main(int argc, const char** argv) {
 
       // Create the receive thread for this socket
       auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue]() {
-	bool flushed = true;
+	bool flushed = false;
 	while (1) {
 	  std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
 	  ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
-	  if (count <= 0) {
-	    if(flushed) {
+	  if (count < 0) {
+	    if (!flushed) {
+	      // Indicate a flush by putting an empty message on the queue
+	      count = 0;
+	      flushed = true;
+	    } else {
 	      continue;
 	    }
-	    // Indicate a flush by putting an empty message on the queue
-	    count = 0;
-	    flushed = true;
 	  } else {
 	    flushed = false;
 	  }
