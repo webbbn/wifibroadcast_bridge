@@ -29,7 +29,7 @@ port = 2
 inport = 14550
 outport = 14550
 type = data
-priority = 10
+priority = 3
 mcs = 1
 stbc = 1
 ldpc = 1
@@ -46,7 +46,7 @@ priority = 1
 mcs = 1
 stbc = 1
 ldpc = 1
-datarate = 4
+datarate = 0
 
 [ipup]
 name = IP Forward Uplink
@@ -55,11 +55,11 @@ port = 4
 inport = 8345
 outport = 8345
 type = data
-priority = 10
+priority = 1
 mcs = 1
 stbc = 1
 ldpc = 1
-datarate = 4
+datarate = 1
 
 [ipdown]
 name = IP Forward Downlink
@@ -68,11 +68,11 @@ port = 5
 inport = 8346
 outport = 8346
 type = data
-priority = 10
+priority = 1
 mcs = 1
 stbc = 1
 ldpc = 1
-datarate = 4
+datarate = 1
 
 [video_no_fec]
 name = Video Downlink With No Forward Error Correction

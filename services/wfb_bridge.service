@@ -5,7 +5,7 @@ After=wifi_config.service
 [Service]
 Type=simple
 EnvironmentFile=/etc/default/wfb_bridge
-ExecStart=/usr/bin/nice -9 /usr/bin/wfb_bridge /etc/default/wfb_bridge
+ExecStart=/usr/bin/nice -2 /usr/bin/wfb_bridge /etc/default/wfb_bridge
 ExecReload=/bin/kill -1 $MAINPID
 ExecStop=/bin/kill -9 $MAINPID
 TimeoutStopSec=5s

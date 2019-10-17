@@ -20,11 +20,18 @@ std::shared_ptr<FECBlock> FECEncoder::get_next_block(uint16_t length) {
 void FECEncoder::add_block(std::shared_ptr<FECBlock> block) {
   FECHeader *h = block->header();
   h->block = m_in_blocks.size();
-  m_in_blocks.push_back(block);
 
-  // Calculate the FEC blocks when we've received enough blocks.
-  if ((m_num_fec_blocks > 0) && (h->block == (m_num_blocks - 1))) {
-    encode_blocks();
+  // Just output the block if we're not actually encoding.
+  if ((m_num_fec_blocks == 0) || (m_num_blocks == 0)) {
+    m_out_blocks.push(block);
+    ++m_seq_num;
+  } else {
+    m_in_blocks.push_back(block);
+
+    // Calculate the FEC blocks when we've received enough blocks.
+    if ((m_num_fec_blocks > 0) && (h->block == (m_num_blocks - 1))) {
+      encode_blocks();
+    }
   }
 }
 

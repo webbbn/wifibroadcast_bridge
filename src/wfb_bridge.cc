@@ -121,7 +121,7 @@ std::string hostname_to_ip(const std::string &hostname) {
   return "";
 }
 
-int open_udp_socket_for_rx(uint16_t port, const std::string hostname = "") {
+int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t timeout_us) {
 
   // Try to open a UDP socket.
   int fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -135,10 +135,12 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname = "") {
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
 
   // Set a timeout to ensure that the end of a frame gets flushed
-  struct timeval tv;
-  tv.tv_sec = 0;
-  tv.tv_usec = 1000; // 1 ms
-  setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+  if (timeout_us > 0) {
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = timeout_us;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+  }
 
   // Find to the receive port
   struct sockaddr_in saddr;
@@ -344,6 +346,7 @@ int main(int argc, const char** argv) {
       uint16_t blocksize = v.second.get<uint16_t>("blocksize", 1500);
       uint8_t nblocks = v.second.get<uint8_t>("blocks", 1);
       uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
+      bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
       // Get the Tx parameters (optional).
       WifiOptions opts;
@@ -367,7 +370,8 @@ int main(int argc, const char** argv) {
       }
 
       // Try to open the UDP socket.
-      int udp_sock = open_udp_socket_for_rx(inport, hostname);
+      uint32_t timeout_us = do_fec ? 1000 : 0; // 1ms timeout for FEC links to support flushing
+      int udp_sock = open_udp_socket_for_rx(inport, hostname, timeout_us);
       if (udp_sock < 0) {
 	LOG_CRITICAL << "Error opening the UDP socket for " << name << "  ("
 		  << hostname << ":" << port;
@@ -375,7 +379,7 @@ int main(int argc, const char** argv) {
       }
 
       // Create the receive thread for this socket
-      auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue]() {
+      auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport]() {
 	bool flushed = false;
 	while (1) {
 	  std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
@@ -393,11 +397,6 @@ int main(int argc, const char** argv) {
 	  }
 	  msg->msg.resize(count);
 	  outqueue.push(msg);
-	  // If the link goes down the output queue could fill up forever.
-	  // Make sure that doesn't happen. This is the last line of defense.
-	  while (outqueue.size() > 10000) {
-	    outqueue.pop();
-	  }
 	}
       };
       thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
@@ -545,56 +544,45 @@ int main(int argc, const char** argv) {
 	  // Pull the next packet off the queue
 	  std::shared_ptr<Message> msg = outqueue.pop();
 	  bool flush = (msg->msg.size() == 0);
+	  bool debug = !flush && (msg->msg.size() < 50);
 
 	  // FEC encode the packet if requested.
 	  double loop_start = cur_time();
-	  if (msg->enc) {
-	    auto enc = msg->enc;
-	    // Flush the encoder if necessary.
-	    if (flush) {
-	      enc->flush();
-	      ++flushes;
-	    } else {
-	      // Get a FEC encoder block
-	      std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
-	      // Copy the data into the block
-	      std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
-	      // Pass it off to the FEC encoder.
-	      enc->add_block(block);
+	  auto enc = msg->enc;
+	  // Flush the encoder if necessary.
+	  if (flush) {
+	    enc->flush();
+	    ++flushes;
+	  } else {
+	    // Get a FEC encoder block
+	    std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
+	    // Copy the data into the block
+	    std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
+	    // Pass it off to the FEC encoder.
+	    enc->add_block(block);
+	  }
+	  enc_time += (cur_time() - loop_start);
+	  max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
+	  max_queue = std::max(max_queue, outqueue.size() + enc->n_output_blocks());
+	  // Transmit any packets that are finished in the encoder.
+	  for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
+	       block = enc->get_block()) {
+	    // If the link is slower than the data rate we need to drop some packets.
+	    if (block->is_fec_block() &
+		((outqueue.size() + enc->n_output_blocks()) > max_queue_size)) {
+	      ++dropped_blocks;
+	      continue;
 	    }
-	    enc_time += (cur_time() - loop_start);
-	    max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
-	    max_queue = std::max(max_queue, outqueue.size() + enc->n_output_blocks());
-	    // Transmit any packets that are finished in the encoder.
-	    for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
-		 block = enc->get_block()) {
-	      // If the link is slower than the data rate we need to drop some packets.
-	      if (block->is_fec_block() & ((outqueue.size() + enc->n_output_blocks()) > max_queue_size)) {
-		++dropped_blocks;
-		continue;
-	      }
-	      raw_send_sock.send(block->pkt_data(), block->pkt_length(), msg->port,
-				 msg->opts.link_type, msg->opts.data_rate, msg->opts.mcs,
-				 msg->opts.stbc, msg->opts.ldpc);
-	      count += block->pkt_length();
-	      ++nblocks;
-	    }
-	    send_time += cur_time() - loop_start;
-	  } else if(!flush) {
-	    double send_start = cur_time();
-	    if (!raw_send_sock.send(msg->msg, msg->port, msg->opts.link_type)) {
-	      LOG_ERROR << "Error sending a packet on the raw socket";
-	      terminate = true;
-	      break;
-	    }
-	    send_time += (cur_time() - send_start);
-	    count += msg->msg.size();
-	    max_pkt = std::max(msg->msg.size(), max_pkt);
+	    raw_send_sock.send(block->pkt_data(), block->pkt_length(), msg->port,
+			       msg->opts.link_type, msg->opts.data_rate, msg->opts.mcs,
+			       msg->opts.stbc, msg->opts.ldpc);
+	    count += block->pkt_length();
 	    ++nblocks;
 	  }
 	  double cur = cur_time();
-	  double dur = cur - start;
+	  send_time += cur - loop_start;
 	  loop_time += (cur - loop_start);
+	  double dur = cur - start;
 	  if (dur > 2.0) {
 	    LOG_INFO << "Packets/sec: " << int(nblocks / dur)
 		     << " Mbps: " << 8e-6 * count / dur

@@ -220,7 +220,6 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
     m_send_buf[10] = mcs_known;
     m_send_buf[11] = mcs_flags;
     m_send_buf[12] = datarate;
-
   } else {
     rt_hlen = sizeof(radiotap_header);
     memcpy(m_send_buf.data(), radiotap_header, rt_hlen);
