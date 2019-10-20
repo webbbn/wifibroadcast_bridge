@@ -19,8 +19,6 @@
 #include <string>
 #include <vector>
 #include <mutex>
-#include <condition_variable>
-#include <queue>
 #include <memory>
 #include <thread>
 #include <set>
@@ -43,9 +41,99 @@
 namespace po=boost::program_options;
 namespace pt=boost::property_tree;
 
-Logger::LoggerP Logger::g_logger;
-
 std::string hostname_to_ip(const std::string &hostname);
+
+
+/************************************************************************************************
+ * Class definitions
+ ************************************************************************************************/
+
+class TransferStats {
+public:
+
+  TransferStats() :
+    m_seq(0), m_blocks(0), m_bytes(0), m_block_errors(0), m_seq_errors(0), m_send_bytes(0),
+    m_send_blocks(0), m_inject_errors(0), m_flushes(0) {}
+
+  void add(const FECDecoderStats &cur, const FECDecoderStats &prev) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_seq += cur.total_blocks - prev.total_blocks;
+    m_blocks += cur.total_packets - prev.total_packets;
+    m_bytes += cur.bytes - prev.bytes;
+    m_block_errors += cur.dropped_packets - prev.dropped_packets;
+    m_seq_errors += cur.dropped_blocks - prev.dropped_blocks;
+  }
+  void add_rssi(int8_t rssi) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_rssi.add(rssi);
+  }
+
+  void add_send_stats(uint32_t bytes, uint32_t nblocks, uint16_t inject_errors, uint32_t queue_size,
+		      bool flush, float pkt_time) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_send_bytes += bytes;
+    m_send_blocks += nblocks;
+    m_inject_errors += inject_errors;
+    m_queue_size.add(queue_size);
+    m_flushes += (flush ? 1 : 0);
+    m_pkt_time.add(pkt_time);
+  }
+
+  void add_encode_time(double t) {
+    m_enc_time.add(t);
+  }
+
+  void add_send_time(double t) {
+    m_send_time.add(t);
+  }
+
+  transfer_stats_t get_stats() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    transfer_stats_t stats;
+    stats.sequences = m_seq;
+    stats.blocks_in = m_blocks;
+    stats.blocks_out = m_send_blocks;
+    stats.bytes_in = m_bytes;
+    stats.bytes_out = m_send_bytes;
+    stats.encode_time = m_enc_time.mean(1e6);
+    stats.send_time = m_send_time.mean(1e6);
+    stats.pkt_time = m_pkt_time.mean(1e6);
+    stats.sequence_errors = m_seq_errors;
+    stats.block_errors = m_block_errors;
+    stats.inject_errors = m_inject_errors;
+    stats.rssi = m_rssi.mean();
+    stats.rssi_min = m_rssi.min();
+    stats.rssi_max = m_rssi.max();
+    return stats;
+  }
+
+  void reset_accumulators() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_queue_size.reset();
+    m_enc_time.reset();
+    m_send_time.reset();
+    m_pkt_time.reset();
+    m_rssi.reset();
+  }
+
+private:
+  double m_window;
+  uint32_t m_seq;
+  uint32_t m_blocks;
+  uint32_t m_bytes;
+  uint32_t m_block_errors;
+  uint32_t m_seq_errors;
+  uint32_t m_send_bytes;
+  uint32_t m_send_blocks;
+  uint32_t m_inject_errors;
+  uint32_t m_flushes;
+  StatsAccumulator<uint32_t> m_queue_size;
+  StatsAccumulator<float> m_enc_time;
+  StatsAccumulator<float> m_send_time;
+  StatsAccumulator<float> m_pkt_time;
+  StatsAccumulator<int8_t> m_rssi;
+  std::mutex m_mutex;
+};
 
 struct WifiOptions {
   WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18, bool m = false,
@@ -100,8 +188,20 @@ struct UDPDestination {
   struct sockaddr_in s;
   int fdout;
   std::shared_ptr<FECDecoder> fec;
-  FECDecoderStats prev_stats;
 };
+
+
+/************************************************************************************************
+ * Global variables
+ ************************************************************************************************/
+
+Logger::LoggerP Logger::g_logger;
+
+
+/************************************************************************************************
+ * Local function definitions
+ ************************************************************************************************/
+
 
 std::string hostname_to_ip(const std::string &hostname) {
 
@@ -175,10 +275,10 @@ double cur_time() {
 // Retrieve messages from incoming raw socket queue and send the UDP packets.
 void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 		   const std::vector<std::shared_ptr<UDPDestination> > &udp_out,
-		   int send_sock) {
+		   int send_sock, TransferStats &stats) {
   double prev_time = cur_time();
-  StatsAccumulator<int8_t> rssi_stats;
   size_t write_errors = 0;
+  FECDecoderStats prev_stats;
   while (1) {
 
     // Ralink and Atheros both always supply the FCS to userspace, no need to check
@@ -192,6 +292,8 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 
     // Pull the next block off the message queue.
     std::shared_ptr<monitor_message_t> msg = inqueue.pop();
+    stats.add_rssi(msg->rssi);
+
     // Lookup the destination class.
     if (!udp_out[msg->port]) {
       LOG_ERROR << "Error finding the output destination for port " << int(msg->port);
@@ -218,36 +320,57 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
       }
     }
 
-    // Accumulate the RSSI stats
-    rssi_stats.add(msg->rssi);
-
-    // Log the FEC stats periodically
-    double dur = (cur_time() - prev_time);
-    if (dur > 2.0) {
-      prev_time = cur_time();
-
-      // Accumulate the FEC stats from each port.
-      FECDecoderStats s;
-      for (auto dest : udp_out) {
-	if (dest) {
-	  s = s + (dest->fec->stats() - dest->prev_stats);
-	  dest->prev_stats = dest->fec->stats();
-	}
-      }
-      LOG_INFO
-	<< "blk: " << s.total_packets << "/" << s.dropped_packets
-	<< "  seq: " << s.total_blocks << "/" << s.dropped_blocks
-	<< "  lost sync: " << s.lost_sync
-	<< "  rate: " << static_cast<double>(s.bytes) * 8e-6 / dur << " Mbps"
-	<< "  RSSI: " << static_cast<int16_t>(rssi_stats.mean())
-	<< " (" << static_cast<int16_t>(rssi_stats.min()) << "/"
-	<< static_cast<int16_t>(rssi_stats.max()) << ")";
-    }
+    // Accumulate the stats
+    stats.add(fec->stats(), prev_stats);
+    prev_stats = fec->stats();
   }
 }
 
+template <typename tmpl__T>
+double mbps(tmpl__T v1, tmpl__T v2, double time) {
+  double diff = static_cast<double>(v1) - static_cast<double>(v2);
+  return diff * 8e-6 / time;
+}
+
+// Log the FEC stats periodically
+void log_thread(TransferStats &stats) {
+
+  transfer_stats_t ps;
+  double pt = 0;
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    transfer_stats_t s = stats.get_stats();
+    double t = cur_time();
+    if (pt == 0) {
+      ps = s;
+      pt = t;
+      continue;
+    }
+    double dt = t - pt;
+    LOG_INFO
+      << std::setprecision(3)
+      << "dur: " << dt << "  "
+      << "seq: " << (s.sequences - ps.sequences) << "/"
+      << (s.sequence_errors - ps.sequence_errors) << "  "
+      << "blk s,r: " << (s.blocks_out - ps.blocks_out) << "/"
+      << s.inject_errors - ps.inject_errors << " "
+      << (s.blocks_in - ps.blocks_in) << "/"
+      << s.block_errors - ps.block_errors << "  "
+      << "rate s,r: " << mbps(s.bytes_out, ps.bytes_out, dt) << "/"
+      << mbps(s.bytes_in, ps.bytes_in, dt) << " Mbps"
+      << "  times (e/s/t): " << s.encode_time << "/" << s.send_time << "/"
+      << s.pkt_time << " us"
+      << "  RSSI: " << static_cast<int16_t>(s.rssi)
+      << " (" << static_cast<int16_t>(s.rssi_min) << "/"
+      << static_cast<int16_t>(s.rssi_max) << ")";
+    ps = s;
+    pt = t;
+    stats.reset_accumulators();
+  }
+}
 
 int main(int argc, const char** argv) {
+  TransferStats trans_stats;
 
   po::options_description desc("Allowed options");
   desc.add_options()
@@ -300,6 +423,9 @@ int main(int argc, const char** argv) {
   // Create the message queues.
   SharedQueue<std::shared_ptr<monitor_message_t> > inqueue;   // Wifi to UDP
   SharedQueue<std::shared_ptr<Message> > outqueue;  // UDP to Wifi
+
+  // Create the stats logging thread.
+  std::thread stats_thread([&trans_stats]() { log_thread(trans_stats); });
 
   // Create the the threads for receiving blocks off the UDP sockets
   // and relaying them to the raw socket interface.
@@ -478,8 +604,8 @@ int main(int argc, const char** argv) {
 
   // Create the thread for retrieving messages from incoming raw socket queue
   // and send the UDP packets.
-  auto usth = [&inqueue, &udp_out, send_sock]() {
-		udp_send_loop(inqueue, udp_out, send_sock);
+  auto usth = [&inqueue, &udp_out, send_sock, &trans_stats]() {
+		udp_send_loop(inqueue, udp_out, send_sock, trans_stats);
 	      };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
 
@@ -524,19 +650,7 @@ int main(int argc, const char** argv) {
 
     // Create a thread to send raw socket packets.
     auto send_th =
-      [&outqueue, &raw_send_sock, max_queue_size, &terminate]() {
-	double start = cur_time();
-	double cur = 0;
-	double enc_time = 0;
-	double send_time = 0;
-	double loop_time = 0;
-	size_t count = 0;
-	size_t pkts = 0;
-	size_t nblocks = 0;
-	size_t max_pkt = 0;
-	size_t dropped_blocks = 0;
-	size_t max_queue = 0;
-	size_t flushes = 0;
+      [&outqueue, &raw_send_sock, max_queue_size, &terminate, &trans_stats]() {
 
 	// Send message out of the send queue
 	while(!terminate) {
@@ -552,21 +666,25 @@ int main(int argc, const char** argv) {
 	  // Flush the encoder if necessary.
 	  if (flush) {
 	    enc->flush();
-	    ++flushes;
 	  } else {
+	    double enc_start = cur_time();
 	    // Get a FEC encoder block
 	    std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
 	    // Copy the data into the block
 	    std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
 	    // Pass it off to the FEC encoder.
 	    enc->add_block(block);
+	    trans_stats.add_encode_time(cur_time() - enc_start);
 	  }
-	  enc_time += (cur_time() - loop_start);
-	  max_pkt = std::max(static_cast<size_t>(msg->msg.size()), max_pkt);
-	  max_queue = std::max(max_queue, outqueue.size() + enc->n_output_blocks());
+
 	  // Transmit any packets that are finished in the encoder.
+	  size_t queue_size = outqueue.size() + enc->n_output_blocks();
+	  size_t dropped_blocks;
+	  size_t count = 0;
+	  size_t nblocks = 0;
 	  for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
 	       block = enc->get_block()) {
+	    double send_start = cur_time();
 	    // If the link is slower than the data rate we need to drop some packets.
 	    if (block->is_fec_block() &
 		((outqueue.size() + enc->n_output_blocks()) > max_queue_size)) {
@@ -578,27 +696,15 @@ int main(int argc, const char** argv) {
 			       msg->opts.stbc, msg->opts.ldpc);
 	    count += block->pkt_length();
 	    ++nblocks;
+	    trans_stats.add_send_time(cur_time() - send_start);
 	  }
+
+	  // Add stats to the accumulator.
 	  double cur = cur_time();
-	  send_time += cur - loop_start;
-	  loop_time += (cur - loop_start);
-	  double dur = cur - start;
-	  if (dur > 2.0) {
-	    LOG_INFO << "Packets/sec: " << int(nblocks / dur)
-		     << " Mbps: " << 8e-6 * count / dur
-		     << " Queue: " << max_queue
-		     << " Dropped: " << dropped_blocks
-		     << " Max_packet: " << max_pkt
-		     << " Enc_ms: " << 1e+3 * enc_time
-		     << " Send_ms: " << 1e+3 * send_time
-		     << " Loop_ms: " << 1e3 * loop_time
-		     << " Flushes/sec " << int(flushes / dur);
-	    start = cur;
-	    count = pkts = nblocks = max_pkt = enc_time = send_time = loop_time =
-	      dropped_blocks = max_queue = flushes = 0;
-	  }
+	  double loop_time = cur - loop_start;
+	  trans_stats.add_send_stats(count, nblocks, dropped_blocks, queue_size, flush, loop_time);
 	}
-      };
+    };
     std::thread send_thread(send_th);
 
     // Open the raw receive socket

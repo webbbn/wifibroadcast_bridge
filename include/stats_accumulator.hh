@@ -15,7 +15,7 @@ public:
   void add(tmpl__T v) {
     m_min = std::min(m_min, v);
     m_max = std::max(m_max, v);
-    m_sum += v;
+    m_sum += static_cast<double>(v);
     ++m_count;
   }
   tmpl__T min() {
@@ -32,8 +32,11 @@ public:
     return m_count;
   }
 
-  double mean() {
-    return m_sum / m_count;
+  double mean(double scale = 1.0) {
+    if (m_count == 0) {
+      return 0;
+    }
+    return static_cast<tmpl__T>(std::round(scale * m_sum / static_cast<double>(m_count)));
   }
 
   void reset() {
