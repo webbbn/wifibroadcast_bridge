@@ -1,71 +1,53 @@
 #ifndef STATS_ACCUMULATOR_HH
 #define STATS_ACCUMULATOR_HH
 
-#include <queue>
-#include <algorithm>
-#include <functional>
-#include <numeric>
+#include <limits>
 
 #include <stdint.h>
- 
 
 template <typename tmpl__T>
 class StatsAccumulator {
 public:
-  StatsAccumulator(double time_window) : m_window(time_window) { }
+  StatsAccumulator() {
+    reset();
+  }
 
-  void add(tmpl__T v, double time) {
-    m_q.push_front(std::make_pair(v, time));
-    while (!m_q.empty()) {
-      double qtime = m_q.back().second;
-      if ((time - qtime) > m_window) {
-	tmpl__T val = m_q.back().first;
-	m_q.pop_back();
-      } else if(m_q.size() > 100000) {
-	std::cerr << m_q.size() << std::endl;
-	break;
-      } else {
-	break;
-      }
-    }
+  void add(tmpl__T v) {
+    m_min = std::min(m_min, v);
+    m_max = std::max(m_max, v);
+    m_sum += v;
+    ++m_count;
   }
   tmpl__T min() {
-    if (m_q.empty()) {
-      return 0;
-    }
-    return std::min_element(m_q.begin(), m_q.end())->first;
+    return m_min;
   }
   tmpl__T max() {
-    if (m_q.empty()) {
-      return 0;
-    }
-    return std::max_element(m_q.begin(), m_q.end())->first;
+    return m_max;
   }
 
   double sum() {
-    if (m_q.empty()) {
-      return 0;
-    }
-    double ret = 0;
-    for (const auto &p : m_q) {
-      ret += p.first;
-    }
-    return ret;
+    return m_sum;
   }
   size_t count() {
-    return m_q.size();
+    return m_count;
   }
 
   double mean() {
-    if (m_q.empty()) {
-      return 0;
-    }
-    return sum() / m_q.size();
+    return m_sum / m_count;
+  }
+
+  void reset() {
+    m_min = std::numeric_limits<tmpl__T>::max();
+    m_max = std::numeric_limits<tmpl__T>::lowest();
+    m_sum = 0;
+    m_count = 0;
   }
 
 private:
-  double m_window;
-  std::deque<std::pair<tmpl__T, double> > m_q;
+  tmpl__T m_min;
+  tmpl__T m_max;
+  double m_sum;
+  uint32_t m_count;
 };
 
 #endif // STATS_ACCUMULATOR_HH
