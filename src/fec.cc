@@ -154,6 +154,12 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
     m_stats.dropped_packets += h.block;
   }
 
+  // Just release the block of FEC is not being performed on this channel.
+  if ((n_blocks == 0) || (n_fec_blocks == 0)) {
+    m_out_blocks.push(blk);
+    return;
+  }
+
   // The current block size is equal to the block size of the largest block.
   m_block_size = std::max(m_block_size, blk->block_size());
 
