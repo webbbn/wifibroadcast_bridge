@@ -46,6 +46,17 @@ public:
     m_count = 0;
   }
 
+  void set(tmpl__T min, tmpl__T mean, tmpl__T max) {
+    m_min = min;
+    m_max = max;
+    m_sum = mean;
+    m_count = 1;
+  }
+
+  void set(tmpl__T val) {
+    set(val, val, val);
+  }
+
 private:
   tmpl__T m_min;
   tmpl__T m_max;
