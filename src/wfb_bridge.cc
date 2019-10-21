@@ -120,6 +120,7 @@ public:
   }
 
   void update(const std::string &s) {
+    std::cerr << s << std::endl;
     boost::char_separator<char> sep(",");
     boost::tokenizer<boost::char_separator<char> > tok(s, sep);
     boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
@@ -131,14 +132,13 @@ public:
     m_send_bytes = boost::lexical_cast<uint32_t>(*i++);
     m_send_blocks = boost::lexical_cast<uint32_t>(*i++);
     m_inject_errors = boost::lexical_cast<uint32_t>(*i++);
-    m_flushes = boost::lexical_cast<uint32_t>(*i++);
     m_queue_size.set(boost::lexical_cast<uint32_t>(*i++));
-    m_enc_time.set(boost::lexical_cast<uint32_t>(*i++));
-    m_send_time.set(boost::lexical_cast<uint32_t>(*i++));
-    m_pkt_time.set(boost::lexical_cast<uint32_t>(*i++));
-    m_rssi.set(boost::lexical_cast<uint32_t>(*i++),
-	       boost::lexical_cast<uint32_t>(*i++),
-	       boost::lexical_cast<uint32_t>(*i++));
+    m_enc_time.set(boost::lexical_cast<float>(*i++));
+    m_send_time.set(boost::lexical_cast<float>(*i++));
+    m_pkt_time.set(boost::lexical_cast<float>(*i++));
+    m_rssi.set(boost::lexical_cast<int32_t>(*i++),
+	       boost::lexical_cast<int32_t>(*i++),
+	       boost::lexical_cast<int32_t>(*i));
   }
 
   std::string serialize() {
@@ -153,7 +153,6 @@ public:
        << m_send_bytes << ","
        << m_send_blocks << ","
        << m_inject_errors << ","
-       << m_flushes << ","
        << m_queue_size.mean() << ","
        << m_enc_time.mean() << ","
        << m_send_time.mean() << ","
