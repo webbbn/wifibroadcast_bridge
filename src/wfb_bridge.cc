@@ -120,7 +120,6 @@ public:
   }
 
   void update(const std::string &s) {
-    std::cerr << s << std::endl;
     boost::char_separator<char> sep(",");
     boost::tokenizer<boost::char_separator<char> > tok(s, sep);
     boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
@@ -157,9 +156,9 @@ public:
        << m_enc_time.mean() << ","
        << m_send_time.mean() << ","
        << m_pkt_time.mean() << ","
-       << m_rssi.min() << ","
-       << m_rssi.mean() << ","
-       << m_rssi.max();
+       << int(m_rssi.min()) << ","
+       << int(m_rssi.mean()) << ","
+       << int(m_rssi.max());
     return ss.str();
   }
 
