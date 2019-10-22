@@ -36,7 +36,6 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <logging.hh>
-#include <stats_accumulator.hh>
 #include <shared_queue.hh>
 #include <raw_socket.hh>
 #include <fec.hh>
@@ -50,6 +49,30 @@ std::string hostname_to_ip(const std::string &hostname);
 /************************************************************************************************
  * Class definitions
  ************************************************************************************************/
+
+struct transfer_stats_t {
+  transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
+		   uint32_t _bytes_in = 0, uint32_t _bytes_out = 0, uint32_t _block_errors = 0,
+		   uint32_t _sequence_errors = 0, uint32_t _inject_errors = 0,
+		   double _encode_time = 0, double _send_time = 0, double _pkt_time = 0,
+		   int8_t _rssi= 0) :
+    sequences(_sequences), blocks_in(_blocks_in), blocks_out(_blocks_out),
+    sequence_errors(_sequence_errors), block_errors(_block_errors), inject_errors(_inject_errors),
+    bytes_in(_bytes_in), bytes_out(_bytes_out),
+    encode_time(_encode_time), send_time(_send_time), pkt_time(_pkt_time), rssi(_rssi) { }
+  uint32_t sequences;
+  uint32_t blocks_in;
+  uint32_t blocks_out;
+  uint32_t sequence_errors;
+  uint32_t block_errors;
+  uint32_t inject_errors;
+  uint32_t bytes_in;
+  uint32_t bytes_out;
+  double encode_time;
+  double send_time;
+  double pkt_time;
+  int8_t rssi;
+};
 
 class TransferStats {
 public:
@@ -68,28 +91,28 @@ public:
   }
   void add_rssi(int8_t rssi) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_rssi.add(rssi);
+    m_rssi = 0.1 * m_rssi + 0.9 * rssi;
   }
 
   void add_send_stats(uint32_t bytes, uint32_t nblocks, uint16_t inject_errors, uint32_t queue_size,
-		      bool flush, float pkt_time) {
+		      bool flush, double pkt_time) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_send_bytes += bytes;
     m_send_blocks += nblocks;
     m_inject_errors += inject_errors;
-    m_queue_size.add(queue_size);
+    m_queue_size = 0.1 * m_queue_size + 0.9 * queue_size;
     m_flushes += (flush ? 1 : 0);
-    m_pkt_time.add(pkt_time);
+    m_pkt_time = 0.1 * m_pkt_time + 9e5 * pkt_time;
   }
 
   void add_encode_time(double t) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_enc_time.add(t);
+    m_enc_time = 0.1 * m_enc_time + 9e5 * t;
   }
 
   void add_send_time(double t) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_send_time.add(t);
+    m_send_time = 0.1 * m_send_time + 9e5 * t;
   }
 
   transfer_stats_t get_stats() {
@@ -100,25 +123,14 @@ public:
     stats.blocks_out = m_send_blocks;
     stats.bytes_in = m_bytes;
     stats.bytes_out = m_send_bytes;
-    stats.encode_time = m_enc_time.mean(1e6);
-    stats.send_time = m_send_time.mean(1e6);
-    stats.pkt_time = m_pkt_time.mean(1e6);
+    stats.encode_time = m_enc_time;
+    stats.send_time = m_send_time;
+    stats.pkt_time = m_pkt_time;
     stats.sequence_errors = m_seq_errors;
     stats.block_errors = m_block_errors;
     stats.inject_errors = m_inject_errors;
-    stats.rssi = m_rssi.mean();
-    stats.rssi_min = m_rssi.min();
-    stats.rssi_max = m_rssi.max();
+    stats.rssi = static_cast<int8_t>(std::round(m_rssi));
     return stats;
-  }
-
-  void reset_accumulators() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_queue_size.reset();
-    m_enc_time.reset();
-    m_send_time.reset();
-    m_pkt_time.reset();
-    m_rssi.reset();
   }
 
   void update(const std::string &s) {
@@ -135,13 +147,11 @@ public:
     m_send_bytes = boost::lexical_cast<uint32_t>(*i++);
     m_send_blocks = boost::lexical_cast<uint32_t>(*i++);
     m_inject_errors = boost::lexical_cast<uint32_t>(*i++);
-    m_queue_size.set(boost::lexical_cast<uint32_t>(*i++));
-    m_enc_time.set(boost::lexical_cast<float>(*i++));
-    m_send_time.set(boost::lexical_cast<float>(*i++));
-    m_pkt_time.set(boost::lexical_cast<float>(*i++));
-    m_rssi.set(boost::lexical_cast<int32_t>(*i++),
-	       boost::lexical_cast<int32_t>(*i++),
-	       boost::lexical_cast<int32_t>(*i));
+    m_queue_size = boost::lexical_cast<double>(*i++);
+    m_enc_time = boost::lexical_cast<double>(*i++);
+    m_send_time = boost::lexical_cast<double>(*i++);
+    m_pkt_time = boost::lexical_cast<double>(*i++);
+    m_rssi = boost::lexical_cast<double>(*i++);
   }
 
   std::string serialize() {
@@ -157,13 +167,11 @@ public:
        << m_send_bytes << ","
        << m_send_blocks << ","
        << m_inject_errors << ","
-       << m_queue_size.mean() << ","
-       << m_enc_time.mean() << ","
-       << m_send_time.mean() << ","
-       << m_pkt_time.mean() << ","
-       << int(m_rssi.min()) << ","
-       << int(m_rssi.mean()) << ","
-       << int(m_rssi.max());
+       << m_queue_size << ","
+       << m_enc_time << ","
+       << m_send_time << ","
+       << m_pkt_time << ","
+       << m_rssi;
     return ss.str();
   }
 
@@ -184,11 +192,11 @@ private:
   uint32_t m_send_blocks;
   uint32_t m_inject_errors;
   uint32_t m_flushes;
-  StatsAccumulator<uint32_t> m_queue_size;
-  StatsAccumulator<float> m_enc_time;
-  StatsAccumulator<float> m_send_time;
-  StatsAccumulator<float> m_pkt_time;
-  StatsAccumulator<int8_t> m_rssi;
+  double m_queue_size;
+  double m_enc_time;
+  double m_send_time;
+  double m_pkt_time;
+  double m_rssi;
   std::mutex m_mutex;
 };
 
@@ -439,7 +447,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       LOG_INFO
 	<< std::setprecision(3)
 	<< stats.name() << ":  "
-	<< "dur: " << log_dur << "  "
+	<< "int: " << log_dur << "  "
 	<< "seq: " << (s.sequences - ps.sequences) << "/"
 	<< (s.sequence_errors - ps.sequence_errors) << "  "
 	<< "blk s,r: " << (s.blocks_out - ps.blocks_out) << "/"
@@ -448,18 +456,17 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	<< s.block_errors - ps.block_errors << "  "
 	<< "rate s,r: " << mbps(s.bytes_out, ps.bytes_out, log_dur) << "/"
 	<< mbps(s.bytes_in, ps.bytes_in, log_dur) << " Mbps"
-	<< "  times (e/s/t): " << s.encode_time << "/" << s.send_time << "/"
-	<< s.pkt_time << " us"
-	<< "  RSSI: " << static_cast<int16_t>(s.rssi)
-	<< " (" << static_cast<int16_t>(s.rssi_min) << "/"
-	<< static_cast<int16_t>(s.rssi_max) << ")";
+	<< "  times (e/s/t): "
+	<< s.encode_time * 1e6 << "/"
+	<< s.send_time * 1e6 << "/"
+	<< s.pkt_time * 1e6 << " us"
+	<< "  RSSI: " << static_cast<int16_t>(std::round(s.rssi));
       ps = s;
-      stats.reset_accumulators();
       transfer_stats_t so = stats_other.get_stats();
       LOG_INFO
 	<< std::setprecision(3)
 	<< stats_other.name() << ":  "
-	<< "dur: " << log_dur << "  "
+	<< "int: " << log_dur << "  "
 	<< "seq: " << (so.sequences - pso.sequences) << "/"
 	<< (so.sequence_errors - pso.sequence_errors) << "  "
 	<< "blk s,r: " << (so.blocks_out - pso.blocks_out) << "/"
@@ -468,13 +475,12 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	<< so.block_errors - pso.block_errors << "  "
 	<< "rate s,r: " << mbps(so.bytes_out, pso.bytes_out, log_dur) << "/"
 	<< mbps(so.bytes_in, pso.bytes_in, log_dur) << " Mbps"
-	<< "  times (e/s/t): " << so.encode_time << "/" << so.send_time << "/"
-	<< so.pkt_time << " us"
-	<< "  RSSI: " << static_cast<int16_t>(so.rssi)
-	<< " (" << static_cast<int16_t>(so.rssi_min) << "/"
-	<< static_cast<int16_t>(so.rssi_max) << ")";
+	<< "  times (e/s/t): "
+	<< so.encode_time * 1e6 << "/"
+	<< so.send_time * 1e6 << "/"
+	<< so.pkt_time * 1e6 << " us"
+	<< "  RSSI: " << static_cast<int16_t>(std::round(so.rssi));
       pso = so;
-      stats_other.reset_accumulators();
       last_log = t;
     }
   }
@@ -544,11 +550,11 @@ int main(int argc, const char** argv) {
 
   // If this is the ground side, get the host and port to send status messages to.
   std::string status_host;
-  uint8_t status_port = 0;
+  uint16_t status_port = 0;
   if (mode == "ground") {
     status_host = conf.get<std::string>("status_down.outhost", "");
-    status_port = conf.get<uint8_t>("status_down.outport", 0);
-    LOG_INFO << "Sending status to udp://" << status_host << ":" << int(status_port);
+    status_port = conf.get<uint16_t>("status_down.outport", 0);
+    LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
   }
 
   // Create the the threads for receiving blocks off the UDP sockets

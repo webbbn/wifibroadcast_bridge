@@ -30,33 +30,6 @@ struct monitor_message_t {
   std::vector<int8_t> rssis;
 };
 
-struct transfer_stats_t {
-  transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
-		   uint32_t _bytes_in = 0, uint32_t _bytes_out = 0, uint32_t _block_errors = 0,
-		   uint32_t _sequence_errors = 0, uint32_t _inject_errors = 0,
-		   float _encode_time = 0, float _send_time = 0, float _pkt_time = 0,
-		   int8_t _rssi= 0, int8_t _rssi_min = 0, int8_t _rssi_max = 0) :
-    sequences(_sequences), blocks_in(_blocks_in), blocks_out(_blocks_out),
-    sequence_errors(_sequence_errors), block_errors(_block_errors), inject_errors(_inject_errors),
-    bytes_in(_bytes_in), bytes_out(_bytes_out),
-    encode_time(_encode_time), send_time(_send_time), pkt_time(_pkt_time),
-    rssi(_rssi), rssi_min(_rssi_min), rssi_max(_rssi_max) {}
-  uint32_t sequences;
-  uint32_t blocks_in;
-  uint32_t blocks_out;
-  uint32_t sequence_errors;
-  uint32_t block_errors;
-  uint32_t inject_errors;
-  uint32_t bytes_in;
-  uint32_t bytes_out;
-  float encode_time;
-  float send_time;
-  float pkt_time;
-  int8_t rssi;
-  int8_t rssi_min;
-  int8_t rssi_max;
-};
-
 // Get a list of all the network device names
 bool detect_network_devices(std::vector<std::string> &ifnames);
 
