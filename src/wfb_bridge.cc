@@ -83,10 +83,12 @@ public:
   }
 
   void add_encode_time(double t) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_enc_time.add(t);
   }
 
   void add_send_time(double t) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_send_time.add(t);
   }
 
@@ -120,9 +122,11 @@ public:
   }
 
   void update(const std::string &s) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     boost::char_separator<char> sep(",");
     boost::tokenizer<boost::char_separator<char> > tok(s, sep);
     boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
+    m_name = boost::lexical_cast<std::string>(*i++);
     m_seq = boost::lexical_cast<uint32_t>(*i++);
     m_blocks = boost::lexical_cast<uint32_t>(*i++);
     m_bytes = boost::lexical_cast<uint32_t>(*i++);
@@ -144,6 +148,7 @@ public:
     std::lock_guard<std::mutex> lock(m_mutex);
     std::stringstream ss;
     ss << std::setprecision(6)
+       << m_name << ","
        << m_seq << ","
        << m_blocks << ","
        << m_bytes << ","
@@ -160,6 +165,11 @@ public:
        << int(m_rssi.mean()) << ","
        << int(m_rssi.max());
     return ss.str();
+  }
+
+  const std::string &name() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_name;
   }
 
 private:
@@ -239,6 +249,7 @@ struct UDPDestination {
   }
   struct sockaddr_in s;
   int fdout;
+  FECDecoderStats prev_stats;
   std::shared_ptr<FECDecoder> fec;
 };
 
@@ -331,7 +342,6 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 		   TransferStats &stats_other) {
   double prev_time = cur_time();
   size_t write_errors = 0;
-  FECDecoderStats prev_stats;
   while (1) {
 
     // Ralink and Atheros both always supply the FCS to userspace, no need to check
@@ -380,8 +390,8 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
     }
 
     // Accumulate the stats
-    stats.add(fec->stats(), prev_stats);
-    prev_stats = fec->stats();
+    stats.add(fec->stats(), udp_out[msg->port]->prev_stats);
+    udp_out[msg->port]->prev_stats = fec->stats();
   }
 }
 
@@ -392,15 +402,23 @@ double mbps(tmpl__T v1, tmpl__T v2, double time) {
 }
 
 // Send status messages to the other radio and log the FEC stats periodically
-void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period, float status_period,
-		SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg) {
+void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
+		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
+		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out) {
+
+  // Open the UDP send socket
+  int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (send_sock < 0) {
+    LOG_CRITICAL << "Error opening the UDP send socket in log_thread.";
+    return;
+  }
 
   uint32_t loop_period =
     static_cast<uint32_t>(std::round(1000.0 * ((syslog_period == 0) ? status_period :
 					       ((status_period == 0) ? syslog_period :
 						std::min(syslog_period, status_period)))));
   transfer_stats_t ps = stats.get_stats();
+  transfer_stats_t pso = stats_other.get_stats();
   double last_stat = cur_time();
   double last_log = cur_time();
   while (true) {
@@ -420,7 +438,8 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       transfer_stats_t s = stats.get_stats();
       LOG_INFO
 	<< std::setprecision(3)
-	<< "dur: " << last_log << "  "
+	<< stats.name() << ":  "
+	<< "dur: " << log_dur << "  "
 	<< "seq: " << (s.sequences - ps.sequences) << "/"
 	<< (s.sequence_errors - ps.sequence_errors) << "  "
 	<< "blk s,r: " << (s.blocks_out - ps.blocks_out) << "/"
@@ -435,10 +454,35 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	<< " (" << static_cast<int16_t>(s.rssi_min) << "/"
 	<< static_cast<int16_t>(s.rssi_max) << ")";
       ps = s;
-      last_log = t;
       stats.reset_accumulators();
+      transfer_stats_t so = stats_other.get_stats();
+      LOG_INFO
+	<< std::setprecision(3)
+	<< stats_other.name() << ":  "
+	<< "dur: " << log_dur << "  "
+	<< "seq: " << (so.sequences - pso.sequences) << "/"
+	<< (so.sequence_errors - pso.sequence_errors) << "  "
+	<< "blk s,r: " << (so.blocks_out - pso.blocks_out) << "/"
+	<< so.inject_errors - pso.inject_errors << " "
+	<< (so.blocks_in - pso.blocks_in) << "/"
+	<< so.block_errors - pso.block_errors << "  "
+	<< "rate s,r: " << mbps(so.bytes_out, pso.bytes_out, log_dur) << "/"
+	<< mbps(so.bytes_in, pso.bytes_in, log_dur) << " Mbps"
+	<< "  times (e/s/t): " << so.encode_time << "/" << so.send_time << "/"
+	<< so.pkt_time << " us"
+	<< "  RSSI: " << static_cast<int16_t>(so.rssi)
+	<< " (" << static_cast<int16_t>(so.rssi_min) << "/"
+	<< static_cast<int16_t>(so.rssi_max) << ")";
+      pso = so;
+      stats_other.reset_accumulators();
+      last_log = t;
     }
   }
+
+  // Send the local status out the UDP port
+  std::string outmsg = stats.serialize();
+  sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
+	 (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
 }
 
 int main(int argc, const char** argv) {
@@ -498,11 +542,20 @@ int main(int argc, const char** argv) {
   SharedQueue<std::shared_ptr<monitor_message_t> > inqueue;   // Wifi to UDP
   SharedQueue<std::shared_ptr<Message> > outqueue;  // UDP to Wifi
 
+  // If this is the ground side, get the host and port to send status messages to.
+  std::string status_host;
+  uint8_t status_port = 0;
+  if (mode == "ground") {
+    status_host = conf.get<std::string>("status_down.outhost", "");
+    status_port = conf.get<uint8_t>("status_down.outport", 0);
+    LOG_INFO << "Sending status to udp://" << status_host << ":" << int(status_port);
+  }
+
   // Create the the threads for receiving blocks off the UDP sockets
   // and relaying them to the raw socket interface.
   std::vector<std::shared_ptr<std::thread> > thrs;
   TransferStats trans_stats(mode);
-  TransferStats trans_stats_other(mode);
+  TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
   BOOST_FOREACH(const auto &v, conf) {
     const std::string &group = v.first;
 
@@ -575,8 +628,11 @@ int main(int argc, const char** argv) {
 	// Create the stats logging thread.
 	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
 	auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-		      &outqueue, msg]() {
-	  log_thread(trans_stats, trans_stats_other, syslog_period, status_period, outqueue, msg);
+		      &outqueue, msg, status_host, status_port]() {
+	  std::shared_ptr<UDPDestination> udp_out
+	  (new UDPDestination(status_port, status_host, std::shared_ptr<FECDecoder>()));
+	  log_thread(trans_stats, trans_stats_other, syslog_period, status_period, outqueue, msg,
+		     udp_out);
 	};
 	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
 
@@ -630,8 +686,7 @@ int main(int argc, const char** argv) {
   }
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
-  std::vector<std::shared_ptr<UDPDestination> > udp_out(16);
-  uint8_t status_port = 0;
+  std::vector<std::shared_ptr<UDPDestination> > udp_out(64);
   BOOST_FOREACH(const auto &v, conf) {
     const std::string &group = v.first;
 
