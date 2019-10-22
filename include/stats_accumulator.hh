@@ -32,11 +32,11 @@ public:
     return m_count;
   }
 
-  double mean(double scale = 1.0) {
+  double mean() {
     if (m_count == 0) {
       return 0;
     }
-    return static_cast<tmpl__T>(std::round(scale * m_sum / static_cast<double>(m_count)));
+    return static_cast<tmpl__T>(std::round(m_sum / static_cast<double>(m_count)));
   }
 
   void reset() {
