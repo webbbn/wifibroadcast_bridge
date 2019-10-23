@@ -203,6 +203,9 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
 }
 
 void FECDecoder::decode() {
+  if (m_blocks.size() == 0) {
+    return;
+  }
   const FECHeader &h = *m_blocks[0]->header();
   uint8_t n_blocks = h.n_blocks;
   uint8_t n_fec_blocks = h.n_fec_blocks;
@@ -212,10 +215,13 @@ void FECDecoder::decode() {
     ++m_stats.lost_sync;
     return;
   }
+  if ((n_blocks == 0) || (n_fec_blocks == 0)) {
+    return;
+  }
 
   // Create the vector of data blocks.
-  std::vector<uint8_t*> block_ptrs(h.n_blocks, 0);
-  std::vector<std::shared_ptr<FECBlock> > blocks(h.n_blocks);
+  std::vector<uint8_t*> block_ptrs(n_blocks, 0);
+  std::vector<std::shared_ptr<FECBlock> > blocks(n_blocks);
   for (auto block : m_blocks) {
     blocks[block->header()->block] = block;
     block_ptrs[block->header()->block] = block->fec_data();
