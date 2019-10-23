@@ -287,6 +287,11 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
     if (stat_dur > status_period) {
       std::shared_ptr<Message> omsg = msg->create(stats.serialize());
       outqueue.push(omsg);
+
+      // Send the local status out the UDP port
+      std::string outmsg = stats.serialize();
+      sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
+	     (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
     }
 
     // Post a log message if it's time
@@ -329,11 +334,6 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       last_log = t;
     }
   }
-
-  // Send the local status out the UDP port
-  std::string outmsg = stats.serialize();
-  sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
-	 (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
 }
 
 int main(int argc, const char** argv) {
