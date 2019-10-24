@@ -37,7 +37,18 @@ else ()
 endif ()
 
 # Build the wfb_bridge program
-add_executable(wfb_bridge src/wfb_bridge.cc src/raw_socket.cc src/fec.c src/fec.cc src/radiotap.c src/logging.cc src/transfer_stats.cc)
+add_executable(wfb_bridge
+  src/wfb_bridge.cc
+  src/raw_socket.cc
+  src/fec.c
+  src/fec.cc
+  src/radiotap.c
+  src/logging.cc
+  src/transfer_stats.cc
+  src/udp_send.cc
+  src/udp_receive.cc
+  src/log_thread.cc
+  src/raw_send_thread.cc)
 install(TARGETS wfb_bridge DESTINATION usr/bin COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} pthread)
 
