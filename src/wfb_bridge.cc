@@ -119,6 +119,10 @@ int main(int argc, const char** argv) {
     status_host = conf.get<std::string>("status_down.outhost", "");
     status_port = conf.get<uint16_t>("status_down.outport", 0);
     LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
+  } else {
+    status_host = conf.get<std::string>("status_up.outhost", "");
+    status_port = conf.get<uint16_t>("status_up.outport", 0);
+    LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
   }
 
   // Create the the threads for receiving blocks off the UDP sockets
