@@ -183,7 +183,7 @@ class Network(object):
 
         # Configure the transmit power level (some cards don't support this)
         try:
-            os.system("iw " + card.dev + " set txpower fixed " + str(txpower) * 100)
+            os.system("iw " + card.dev + " set txpower fixed " + str(txpower))
         except Exception as e:
             logging.error("Error setting txpower on: " + card.dev)
             logging.error(e)
