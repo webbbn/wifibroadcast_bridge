@@ -70,4 +70,5 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con") #required
 set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CMAKE_PACKAGING_INSTALL_PREFIX "/")
 include(CPack)
