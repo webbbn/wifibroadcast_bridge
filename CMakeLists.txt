@@ -56,12 +56,12 @@ target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} pthread)
 install(PROGRAMS python/wifi_config.py DESTINATION usr/bin COMPONENT applications)
 
 # Add rules to install the configuration files
-install(PROGRAMS conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
-install(PROGRAMS conf/wifi_config DESTINATION etc/default COMPONENT configuration)
+install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
+install(FILES conf/wifi_config DESTINATION etc/default COMPONENT configuration)
 
 # Add rules to install the services files
-install(PROGRAMS services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
-install(PROGRAMS services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
+install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
+install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
 
 # Add the debian debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")

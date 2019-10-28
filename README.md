@@ -10,7 +10,8 @@ Based on code and ideas from the [OpenHD](https://github.com/HD-Fpv/Open.HD "Ope
 ### Installing dependencies
 
 ~~~
-sudo apt-get install -y libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev
+sudo apt-get install -y libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools cmake
+sudo pip3 -H install pyudev
 ~~~
 
 ### Compiling the software
