@@ -40,14 +40,15 @@
 
 #define IEEE80211_RADIOTAP_MCS_FEC_LDPC   0x10
 #define	IEEE80211_RADIOTAP_MCS_STBC_MASK  0x60
-#define	IEEE80211_RADIOTAP_MCS_STBC_1  1
-#define	IEEE80211_RADIOTAP_MCS_STBC_2  2
-#define	IEEE80211_RADIOTAP_MCS_STBC_3  3
+#define	IEEE80211_RADIOTAP_MCS_STBC_0  0x00
+#define	IEEE80211_RADIOTAP_MCS_STBC_1  0x20
+#define	IEEE80211_RADIOTAP_MCS_STBC_2  0x40
+#define	IEEE80211_RADIOTAP_MCS_STBC_3  0x60
 #define	IEEE80211_RADIOTAP_MCS_STBC_SHIFT 5
 
 #define RADIOTAP_RATE_PRESENT_FLAG (1 << 2)
 #define RADIOTAP_TX_PRESENT_FLAG (1 << 15)
-#define RADIOTAP_MCS_PRESENT_FLAG (1 << 9)
+#define RADIOTAP_MCS_PRESENT_FLAG (1 << 19)
 
 #define RADIOTAP_TX_FLAG_NO_ACK 0x0008
 
@@ -248,7 +249,7 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 		      IEEE80211_RADIOTAP_MCS_HAVE_FEC);
     head.mcs_flags = 0;
     if(stbc) {
-      head.mcs_flags |= IEEE80211_RADIOTAP_MCS_STBC_MASK;
+      head.mcs_flags |= IEEE80211_RADIOTAP_MCS_STBC_1;
     }
     if(ldpc) {
       head.mcs_flags |= IEEE80211_RADIOTAP_MCS_FEC_LDPC;
