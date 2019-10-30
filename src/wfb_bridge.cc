@@ -125,16 +125,126 @@ int main(int argc, const char** argv) {
     LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
   }
 
-  // Create the transfer statistics class for colating the stats for both sides of the link.
-  TransferStats trans_stats(mode);
-  TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
-
   // Create the the threads for receiving blocks off the UDP sockets
   // and relaying them to the raw socket interface.
   std::vector<std::shared_ptr<std::thread> > thrs;
-  if (!create_udp_receive_threads(conf, mode, status_port, syslog_period, status_period,
-				  status_host, outqueue, trans_stats, trans_stats_other, thrs)) {
-    return EXIT_FAILURE;
+  TransferStats trans_stats(mode);
+  TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
+  BOOST_FOREACH(const auto &v, conf) {
+    const std::string &group = v.first;
+
+    // Ignore global options.
+    if (group == "global") {
+      continue;
+    }
+
+    // Only process uplink configuration entries.
+    std::string direction = v.second.get<std::string>("direction", "");
+    if (((direction == "down") && (mode == "air")) ||
+	((direction == "up") && (mode == "ground"))) {
+
+      // Get the name.
+      std::string name = v.second.get<std::string>("name", "");
+
+      // Get the UDP port number (required except for status).
+      uint16_t inport = v.second.get<uint16_t>("inport", 0);
+      if ((inport == 0) && (group != "status_down") && (group != "status_up")) {
+	LOG_CRITICAL << "No inport specified for " << name;
+	return EXIT_FAILURE;
+      }
+
+      // Get the remote hostname/ip (optional)
+      std::string hostname = v.second.get<std::string>("inhost", "127.0.0.1");
+
+      // Get the port number (required).
+      uint8_t port = v.second.get<uint16_t>("port", 0);
+      if (port == 0) {
+	LOG_CRITICAL << "No port specified for " << name;
+	return EXIT_FAILURE;
+      }
+
+      // Get the link type
+      std::string type = v.second.get<std::string>("type", "data");
+
+      // Get the priority (optional).
+      uint8_t priority = v.second.get<uint8_t>("priority", 100);
+
+      // Get the FEC stats (optional).
+      uint16_t blocksize = v.second.get<uint16_t>("blocksize", 1500);
+      uint8_t nblocks = v.second.get<uint8_t>("blocks", 1);
+      uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
+      bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
+
+      // Get the Tx parameters (optional).
+      WifiOptions opts;
+      opts.data_rate = v.second.get<uint8_t>("datarate", 18);
+      opts.mcs = v.second.get<uint8_t>("mcs", 0) ? true : false;
+      opts.stbc = v.second.get<uint8_t>("stbc", 0) ? true : false;
+      opts.ldpc = v.second.get<uint8_t>("ldpc", 0) ? true : false;
+
+      // Allocate the encoder
+      std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize));
+
+      // Create the FEC encoder if requested.
+      if (type == "data"){
+	opts.link_type = DATA_LINK;
+      } else if (type == "short") {
+	opts.link_type = SHORT_DATA_LINK;
+      } else if (type == "rts") {
+	opts.link_type = RTS_DATA_LINK;
+      } else {
+	opts.link_type = DATA_LINK;
+      }
+
+      // Create the logging thread if this is a status down channel.
+      if ((group == "status_down") || (group == "status_up")) {
+
+	// Create the stats logging thread.
+	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+	auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
+		      &outqueue, msg, status_host, status_port]() {
+	  std::shared_ptr<UDPDestination> udp_out
+	  (new UDPDestination(status_port, status_host, std::shared_ptr<FECDecoder>()));
+	  log_thread(trans_stats, trans_stats_other, syslog_period, status_period, outqueue, msg,
+		     udp_out);
+	};
+	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
+
+      } else {
+
+	// Try to open the UDP socket.
+	uint32_t timeout_us = do_fec ? 1000 : 0; // 1ms timeout for FEC links to support flushing
+	int udp_sock = open_udp_socket_for_rx(inport, hostname, timeout_us);
+	if (udp_sock < 0) {
+	  LOG_CRITICAL << "Error opening the UDP socket for " << name << "  ("
+		       << hostname << ":" << port;
+	  return EXIT_FAILURE;
+	}
+
+	// Create the receive thread for this socket
+	auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport]() {
+	  bool flushed = false;
+	  while (1) {
+	    std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+	    ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
+	    if (count < 0) {
+	      if (!flushed) {
+		// Indicate a flush by putting an empty message on the queue
+		count = 0;
+		flushed = true;
+	      } else {
+		continue;
+	      }
+	    } else {
+	      flushed = false;
+	    }
+	    msg->msg.resize(count);
+	    outqueue.push(msg);
+	  }
+	};
+	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
+      }
+    }    
   }
 
   // Open the UDP send socket

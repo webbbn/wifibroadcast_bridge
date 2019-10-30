@@ -14,6 +14,7 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
     // Pull the next packet off the queue
     std::shared_ptr<Message> msg = outqueue.pop();
     bool flush = (msg->msg.size() == 0);
+    bool debug = !flush && (msg->msg.size() < 50);
 
     // FEC encode the packet if requested.
     double loop_start = cur_time();
@@ -26,14 +27,6 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
       // Get a FEC encoder block
       std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
       // Copy the data into the block
-/*
-      double sent_time = *reinterpret_cast<double*>(msg->msg.data());
-      double cur = cur_time();
-      if (msg->port == 1) {
-	msg->msg.data()[10] = static_cast<uint8_t>(std::round((cur - sent_time) * 1e3)) -
-	  msg->msg.data()[9];
-      }
-*/
       std::copy(msg->msg.data(), msg->msg.data() + msg->msg.size(), block->data());
       // Pass it off to the FEC encoder.
       enc->add_block(block);
