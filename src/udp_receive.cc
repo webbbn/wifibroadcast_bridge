@@ -184,5 +184,5 @@ bool create_udp_receive_threads(boost::property_tree::ptree &conf, const std::st
       }
     }    
   }
+  return true;
 }
-

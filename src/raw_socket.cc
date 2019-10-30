@@ -57,6 +57,7 @@ typedef struct {
   int n80211HeaderLength;
 } monitor_interface_t;
 
+#pragma pack()
 struct radiotap_header_legacy {
   radiotap_header_legacy() :
     version(0), pad1(0), len(12), present(RADIOTAP_RATE_PRESENT_FLAG | RADIOTAP_TX_PRESENT_FLAG),
@@ -68,8 +69,9 @@ struct radiotap_header_legacy {
   uint8_t datarate;
   uint8_t pad2;
   uint16_t tx_flags;
-};
+} __attribute__((__packed__));
 
+#pragma pack()
 struct radiotap_header_mcs {
   radiotap_header_mcs() :
     version(0), pad1(0), len(13), present(RADIOTAP_TX_PRESENT_FLAG | RADIOTAP_MCS_PRESENT_FLAG),
@@ -82,7 +84,7 @@ struct radiotap_header_mcs {
   uint8_t mcs_known;
   uint8_t mcs_flags;
   uint8_t mcs_rate;
-};
+} __attribute__((__packed__));
 
 #if 0
 static uint8_t radiotap_header[] = {

@@ -26,9 +26,9 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
       // Get a FEC encoder block
       std::shared_ptr<FECBlock> block = enc->get_next_block(msg->msg.size());
       // Copy the data into the block
+/*
       double sent_time = *reinterpret_cast<double*>(msg->msg.data());
       double cur = cur_time();
-/*
       if (msg->port == 1) {
 	msg->msg.data()[10] = static_cast<uint8_t>(std::round((cur - sent_time) * 1e3)) -
 	  msg->msg.data()[9];
