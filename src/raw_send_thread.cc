@@ -35,7 +35,7 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
     // Transmit any packets that are finished in the encoder.
     size_t queue_size = outqueue.size() + enc->n_output_blocks();
-    size_t dropped_blocks;
+    uint16_t dropped_blocks = 0;
     size_t count = 0;
     size_t nblocks = 0;
     for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
