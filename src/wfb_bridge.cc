@@ -105,7 +105,8 @@ int main(int argc, const char** argv) {
 
   // Create the logger
   Logger::create(log_level, syslog_level, syslog_host);
-  LOG_INFO << "wfb_bridge logging '" << log_level << "' to console and '"
+  LOG_INFO << "wfb_bridge running in " << mode << " mode and logging '"
+	   << log_level << "' to console and '"
 	   << syslog_level << "' to syslog";
 
   // Create the message queues.
