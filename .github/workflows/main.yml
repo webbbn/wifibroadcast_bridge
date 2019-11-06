@@ -29,5 +29,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
-        name: my-artifact
+        name: wifibroadcast-0.1.0-Linux.deb
         path: build/wifibroadcast_bridge-0.1.0-Linux.deb
