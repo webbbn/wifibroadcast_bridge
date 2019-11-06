@@ -20,7 +20,7 @@
 #include <iostream>
 
 #include <raw_socket.hh>
-
+#include <logging.hh>
 #include <pcap-bpf.h>
 #include <radiotap.h>
 
@@ -169,7 +169,7 @@ bool RawSendSocket::add_device(const std::string &device) {
 
   m_sock = socket(AF_PACKET, SOCK_RAW, 0);
   if (m_sock == -1) {
-    m_error_msg = "Socket open failed.";
+    LOG_ERROR << "Socket open failed.";
     return false;
   }
 
@@ -191,7 +191,7 @@ bool RawSendSocket::add_device(const std::string &device) {
   }
 
   if (ioctl(m_sock, SIOCGIFINDEX, &ifr) < 0) {
-    m_error_msg = "Error: ioctl(SIOCGIFINDEX) failed.";
+    LOG_ERROR << "Error: ioctl(SIOCGIFINDEX) failed.";
     close(m_sock);
     m_sock = -1;
     return false;
@@ -199,7 +199,7 @@ bool RawSendSocket::add_device(const std::string &device) {
   ll_addr.sll_ifindex = ifr.ifr_ifindex;
 
   if (ioctl(m_sock, SIOCGIFHWADDR, &ifr) < 0) {
-    m_error_msg = "Error: ioctl(SIOCGIFHWADDR) failed.";
+    LOG_ERROR << "Error: ioctl(SIOCGIFHWADDR) failed.";
     close(m_sock);
     m_sock = -1;
     return false;
@@ -207,14 +207,14 @@ bool RawSendSocket::add_device(const std::string &device) {
   memcpy(ll_addr.sll_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
   if (bind(m_sock, (struct sockaddr *)&ll_addr, sizeof(ll_addr)) == -1) {
-    m_error_msg = "Error: bind failed.";
+    LOG_ERROR << "Error: bind failed.";
     close(m_sock);
     m_sock = -1;
     return false;
   }
 
   if (m_sock == -1) {
-    m_error_msg = "Error: Cannot open socket: Must be root with an 802.11 card with RFMON enabled";
+    LOG_ERROR << "Error: Cannot open socket: Must be root with an 802.11 card with RFMON enabled";
     return false;
   }
 
@@ -222,12 +222,12 @@ bool RawSendSocket::add_device(const std::string &device) {
   timeout.tv_sec = 0;
   timeout.tv_usec = 8000;
   if (setsockopt(m_sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
-    m_error_msg = "setsockopt SO_SNDTIMEO";
+    LOG_ERROR << "setsockopt SO_SNDTIMEO";
     return false;
   }
 
   if (setsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &m_buffer_size, sizeof(m_buffer_size)) < 0) {
-    m_error_msg = "setsockopt SO_SNDBUF";
+    LOG_ERROR << "setsockopt SO_SNDBUF";
     return false;
   }
 
@@ -302,6 +302,7 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
       head.datarate = 22;
       break;
     }
+    std::cerr << "dr: " << int(datarate) << " " << int(head.datarate) << std::endl;
     memcpy(m_send_buf.data(), reinterpret_cast<uint8_t*>(&head), rt_hlen);
   }
 
@@ -334,18 +335,18 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   errbuf[0] = '\0';
   m_ppcap = pcap_open_live(device.c_str(), 2350, 0, 100, errbuf);
   if (m_ppcap == NULL) {
-    m_error_msg = "Unable to open " + device + ": " + std::string(errbuf);
+    LOG_ERROR << "Unable to open " + device + ": " + std::string(errbuf);
     return false;
   }
 
   if (pcap_setdirection(m_ppcap, PCAP_D_IN) < 0) {
-    m_error_msg = "Error setting " + device + " direction";
+    LOG_ERROR << "Error setting " + device + " direction";
     return false;
   }
 
   int nLinkEncap = pcap_datalink(m_ppcap);
   if (nLinkEncap != DLT_IEEE802_11_RADIO) {
-    m_error_msg = "ERROR: unknown encapsulation on " + device +
+    LOG_ERROR << "ERROR: unknown encapsulation on " + device +
       "! check if monitor mode is supported and enabled";
     return false;
   }
@@ -356,13 +357,13 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   const char *filter_air = "(ether[0x00:2] == 0x0801 || ether[0x00:2] == 0x0802 || ether[0x00:4] == 0xb4010000) && ((ether[0x04:1] & 0x0f) == 0x0d)";
   const char *filter = (m_ground ? filter_gnd : filter_air);
   if (pcap_compile(m_ppcap, &bpfprogram, filter, 1, 0) == -1) {
-    m_error_msg = "Error compiling bpf program: " + std::string(filter);
+    LOG_ERROR << "Error compiling bpf program: " + std::string(filter);
     return false;
   }
 
   // Configure the filter.
   if (pcap_setfilter(m_ppcap, &bpfprogram) == -1) {
-    m_error_msg = "Error configuring the bpf program: " + std::string(filter);
+    LOG_ERROR << "Error configuring the bpf program: " + std::string(filter);
     return false;
   }
   pcap_freecode(&bpfprogram);
@@ -376,24 +377,17 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
   struct pcap_pkthdr *pcap_packet_header = NULL;
   uint8_t const *pcap_packet_data = NULL;
 
-  while (1) {
-
-    // Recieve the next packet
-    int retval = pcap_next_ex(m_ppcap, &pcap_packet_header, &pcap_packet_data);
-    if (retval < 0) {
-      m_error_msg = "Error receiving from the raw data socket.\n  " +
-	std::string(pcap_geterr(m_ppcap));
-      return false;
-    } else if(retval == 0) {
-      // Timeout, just continue;
-      continue;
-    }
-
-    break;
+  int retval;
+  while ((retval = pcap_next_ex(m_ppcap, &pcap_packet_header, &pcap_packet_data)) == 0) { }
+  if (retval < 0) {
+    LOG_ERROR << "Error receiving from the raw data socket.";
+    LOG_ERROR << "  " << std::string(pcap_geterr(m_ppcap));
+    return false;
   }
 
   // fetch radiotap header length from radiotap header (seems to be 36 for Atheros and 18 for Ralink)
   uint16_t rt_header_len = (pcap_packet_data[3] << 8) + pcap_packet_data[2];
+  LOG_DEBUG << "Receive header length = " << rt_header_len;
 
   // check for packet type and set headerlen accordingly
   pcap_packet_data += rt_header_len;
@@ -409,16 +403,17 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
   }
   msg.port = (pcap_packet_data[4] >> 4);
   pcap_packet_data -= rt_header_len;
+  LOG_DEBUG << "Received message on port: " << static_cast<int32_t>(msg.port);
 
   if (pcap_packet_header->len < static_cast<uint32_t>(rt_header_len + m_n80211HeaderLength)) {
-    m_error_msg = "rx ERROR: ppcapheaderlen < u16headerlen + n80211headerlen";
+    LOG_ERROR << "rx ERROR: ppcapheaderlen < u16headerlen + n80211headerlen";
     return false;
   }
 
   struct ieee80211_radiotap_iterator rti;
   if (ieee80211_radiotap_iterator_init(&rti,(struct ieee80211_radiotap_header *)pcap_packet_data,
 				       pcap_packet_header->len) < 0) {
-    m_error_msg = "rx ERROR: radiotap_iterator_init < 0";
+    LOG_ERROR << "rx ERROR: radiotap_iterator_init < 0";
     return false;
   }
 

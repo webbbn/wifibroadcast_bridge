@@ -51,16 +51,11 @@ public:
     return send(msg.data(), msg.size(), port, type, datarate, mcs, stbc, ldpc);
   }
 
-  const std::string &error_msg() const {
-    return m_error_msg;
-  }
-
 private:
   bool m_ground;
   uint32_t m_max_packet;
   uint32_t m_buffer_size;
   int m_sock;
-  std::string m_error_msg;
   std::vector<uint8_t> m_send_buf;
 };
 
@@ -72,17 +67,12 @@ public:
 
   bool receive(monitor_message_t &msg);
 
-  const std::string &error_msg() const {
-    return m_error_msg;
-  }
-
 private:
   bool m_ground;
   uint32_t m_max_packet;
   pcap_t *m_ppcap;
   int m_selectable_fd;
   int m_n80211HeaderLength;
-  std::string m_error_msg;
 };
 
 #endif // RAW_SOCKET_HH

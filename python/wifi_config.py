@@ -158,6 +158,14 @@ class Network(object):
         #         logging.error(e)
         #         return None
 
+        # Bring the card up first (just because)
+        try:
+            os.system("ifconfig " + card.dev + " up")
+        except Exception as e:
+            logging.error("Error bringing the interface up: " + card.dev)
+            logging.error(e)
+            return False
+
         # Make sure this card is down
         try:
             os.system("ip link set " + card.dev + " down")

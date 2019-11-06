@@ -385,14 +385,13 @@ int main(int argc, const char** argv) {
     RawReceiveSocket raw_recv_sock((mode == "ground"));
     bool valid_recv_sock = false;
     for (const auto &device : ifnames) {
-      LOG_DEBUG << device;
+      LOG_DEBUG << "Trying to configure device: " << device;
       if (raw_recv_sock.add_device(device)) {
 	valid_recv_sock = true;
 	LOG_INFO << "Receiving on interface: " << device;
 	break;
       } else {
-	LOG_DEBUG << "Error: " << device;
-	LOG_DEBUG << "  " << raw_recv_sock.error_msg();
+	LOG_WARNING << "Unable to configure wifi device: " << device;
       }
     }
 
