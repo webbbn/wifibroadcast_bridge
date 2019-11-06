@@ -23,6 +23,7 @@
 #include <logging.hh>
 #include <pcap-bpf.h>
 #include <radiotap.h>
+#include <wfb_bridge.hh>
 
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
 #define IEEE80211_RADIOTAP_MCS_HAVE_MCS   0x02
@@ -312,6 +313,8 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 
   // Set the port in the header
   m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
+  reinterpret_cast<uint16_t*>(m_send_buf.data())[3] =
+    static_cast<uint16_t>(static_cast<uint64_t>(std::round(cur_time() * 1e6)) % 65536);
 
   // Copy the data into the buffer.
   memcpy(m_send_buf.data() + rt_hlen + ieee_hlen, msg, msglen);
