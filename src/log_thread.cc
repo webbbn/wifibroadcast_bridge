@@ -65,6 +65,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	<< mbps(s.bytes_in, ps.bytes_in, log_dur) << " Mbps"
 	<< "  times (e/s/t): " << s.encode_time << "/"<< s.send_time << "/"
 	<< s.pkt_time << " us"
+	<< "  lat: " << s.latency << " ms"
 	<< "  RSSI: " << static_cast<int16_t>(std::round(s.rssi));
       ps = s;
       transfer_stats_t so = stats_other.get_stats();
@@ -82,6 +83,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	<< mbps(so.bytes_in, pso.bytes_in, log_dur) << " Mbps"
 	<< "  times (e/s/t): " << so.encode_time << "/"	<< so.send_time << "/"
 	<< so.pkt_time << " us"
+	<< "  lat: " << so.latency << " ms"
 	<< "  RSSI: " << static_cast<int16_t>(std::round(so.rssi));
       pso = so;
       last_log = t;

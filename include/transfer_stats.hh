@@ -12,8 +12,8 @@ struct transfer_stats_t {
   transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
 		   uint32_t _bytes_in = 0, uint32_t _bytes_out = 0, uint32_t _block_errors = 0,
 		   uint32_t _sequence_errors = 0, uint32_t _inject_errors = 0,
-		   double _encode_time = 0, double _send_time = 0, double _pkt_time = 0,
-		   int8_t _rssi= 0);
+		   float _encode_time = 0, float _send_time = 0, float _pkt_time = 0,
+		   float _latency = 0, float _rssi= 0);
   uint32_t sequences;
   uint32_t blocks_in;
   uint32_t blocks_out;
@@ -22,10 +22,11 @@ struct transfer_stats_t {
   uint32_t inject_errors;
   uint32_t bytes_in;
   uint32_t bytes_out;
-  double encode_time;
-  double send_time;
-  double pkt_time;
-  int8_t rssi;
+  float encode_time;
+  float send_time;
+  float pkt_time;
+  float latency;
+  float rssi;
 };
 
 class TransferStats {
@@ -38,10 +39,10 @@ public:
   void add(const FECDecoderStats &cur, const FECDecoderStats &prev);
   void add_rssi(int8_t rssi);
   void add_send_stats(uint32_t bytes, uint32_t nblocks, uint16_t inject_errors, uint32_t queue_size,
-		      bool flush, double pkt_time);
-  void add_encode_time(double t);
-  void add_send_time(double t);
-
+		      bool flush, float pkt_time);
+  void add_encode_time(float t);
+  void add_send_time(float t);
+  void add_latency(uint8_t);
   transfer_stats_t get_stats();
 
   void update(const std::string &s);
@@ -50,7 +51,7 @@ public:
 
 private:
   std::string m_name;
-  double m_window;
+  float m_window;
   uint32_t m_seq;
   uint32_t m_blocks;
   uint32_t m_bytes;
@@ -60,10 +61,11 @@ private:
   uint32_t m_send_blocks;
   uint32_t m_inject_errors;
   uint32_t m_flushes;
-  double m_queue_size;
-  double m_enc_time;
-  double m_send_time;
-  double m_pkt_time;
-  double m_rssi;
+  float m_queue_size;
+  float m_enc_time;
+  float m_send_time;
+  float m_pkt_time;
+  float m_rssi;
+  float m_latency;
   std::mutex m_mutex;
 };

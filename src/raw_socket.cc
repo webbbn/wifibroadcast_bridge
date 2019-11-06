@@ -23,7 +23,6 @@
 #include <logging.hh>
 #include <pcap-bpf.h>
 #include <radiotap.h>
-#include <wfb_bridge.hh>
 
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
 #define IEEE80211_RADIOTAP_MCS_HAVE_MCS   0x02
@@ -151,6 +150,17 @@ bool detect_network_devices(std::vector<std::string> &ifnames) {
 
   freeifaddrs(ifaddr);
   return true;
+}
+
+inline uint32_t cur_microseconds() {
+  struct timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_usec;
+}
+
+inline uint16_t cur_milliseconds() {
+  uint32_t us = cur_microseconds();
+  return static_cast<uint16_t>(std::round(us / 1000.0));
 }
 
 
@@ -313,8 +323,10 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 
   // Set the port in the header
   m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
-  reinterpret_cast<uint16_t*>(m_send_buf.data())[3] =
-    static_cast<uint16_t>(static_cast<uint64_t>(std::round(cur_time() * 1e6)) % 65536);
+
+  // Add the timestamp to the header.
+  uint8_t send_time = static_cast<uint8_t>(cur_milliseconds() % 256);
+  m_send_buf[rt_hlen + 10] = send_time;
 
   // Copy the data into the buffer.
   memcpy(m_send_buf.data() + rt_hlen + ieee_hlen, msg, msglen);
@@ -390,7 +402,6 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
 
   // fetch radiotap header length from radiotap header (seems to be 36 for Atheros and 18 for Ralink)
   uint16_t rt_header_len = (pcap_packet_data[3] << 8) + pcap_packet_data[2];
-  LOG_DEBUG << "Receive header length = " << rt_header_len;
 
   // check for packet type and set headerlen accordingly
   pcap_packet_data += rt_header_len;
@@ -404,9 +415,18 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
   default:
     break;
   }
+
+  // Extract the port out of the ieee header
   msg.port = (pcap_packet_data[4] >> 4);
+
+  // Extract the time stamp out of the header.
+  uint32_t send_time = pcap_packet_data[5];
+  uint32_t cur_time = cur_milliseconds();
+  msg.latency_ms = (send_time < cur_time) ? (cur_time - send_time) :
+    (cur_time + 256 - send_time);
+
+  // Skip past the radiotap header.
   pcap_packet_data -= rt_header_len;
-  LOG_DEBUG << "Received message on port: " << static_cast<int32_t>(msg.port);
 
   if (pcap_packet_header->len < static_cast<uint32_t>(rt_header_len + m_n80211HeaderLength)) {
     LOG_ERROR << "rx ERROR: ppcapheaderlen < u16headerlen + n80211headerlen";

@@ -26,7 +26,7 @@ struct monitor_message_t {
   uint16_t channel_flag;
   uint8_t radiotap_flags;
   int8_t rssi;
-  uint16_t latency_us;
+  uint16_t latency_ms;
   std::vector<uint8_t> antennas;
   std::vector<int8_t> rssis;
 };

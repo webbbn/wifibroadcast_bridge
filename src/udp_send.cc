@@ -76,6 +76,7 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
     // Pull the next block off the message queue.
     std::shared_ptr<monitor_message_t> msg = inqueue.pop();
     stats.add_rssi(msg->rssi);
+    stats.add_latency(msg->latency_ms);
 
     // Lookup the destination class.
     if (!udp_out[msg->port]) {
