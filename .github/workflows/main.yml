@@ -17,7 +17,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake -DCMAKE_INSTALL_PREFIX=/
+        cmake -DCMAKE_INSTALL_PREFIX=/ ..
     - name: build
       run: make
     - name: create-deb
