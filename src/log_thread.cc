@@ -45,6 +45,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       std::string outmsg = stats.serialize();
       sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
 	     (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
+      last_stat = t;
     }
 
     // Post a log message if it's time

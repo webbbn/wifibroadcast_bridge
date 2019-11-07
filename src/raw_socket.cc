@@ -313,7 +313,6 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
       head.datarate = 22;
       break;
     }
-    std::cerr << "dr: " << int(datarate) << " " << int(head.datarate) << std::endl;
     memcpy(m_send_buf.data(), reinterpret_cast<uint8_t*>(&head), rt_hlen);
   }
 
@@ -326,7 +325,7 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 
   // Add the timestamp to the header.
   uint8_t send_time = static_cast<uint8_t>(cur_milliseconds() % 256);
-  m_send_buf[rt_hlen + 10] = send_time;
+  m_send_buf[rt_hlen + 5] = send_time;
 
   // Copy the data into the buffer.
   memcpy(m_send_buf.data() + rt_hlen + ieee_hlen, msg, msglen);

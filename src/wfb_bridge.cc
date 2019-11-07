@@ -99,7 +99,7 @@ int main(int argc, const char** argv) {
   std::string syslog_level = conf.get<std::string>("global.sysloglevel", "info");
   std::string syslog_host = conf.get<std::string>("global.sysloghost", "localhost");
   float syslog_period = conf.get<float>("global.syslogperiod", 5);
-  float status_period = conf.get<float>("global.statusperiod", 0.1);
+  float status_period = conf.get<float>("global.statusperiod", 0.2);
 
   uint16_t max_queue_size = conf.get<uint16_t>("global.maxqueuesize", 200);
 
