@@ -30,11 +30,12 @@ if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
   set(Python_ADDITIONAL_VERSIONS "3")
   set(PYTHON_EXECUTABLE "/usr/bin/python3")
   find_package(PythonInterp 3.0 REQUIRED)
-  set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages")
+  set(RELATIVE_PYTHON_DIR "lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages")
 else ()
   find_package(Python3 COMPONENTS Interpreter)
-  set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages")
+  set(RELATIVE_PYTHON_DIR "lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages")
 endif ()
+set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 
 # Build the wfb_bridge program
 add_executable(wfb_bridge
@@ -53,10 +54,10 @@ install(TARGETS wfb_bridge DESTINATION /bin COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} pthread)
 
 # Add rules to install the python files
-install(FILES python/rtl88xxau.py DESTINATION ${PYTHON_INSTALL_DIR})
+install(FILES python/rtl88xxau.py DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
 
 # Add rules to install the python executables
-install(PROGRAMS python/wifi_config DESTINATION /bin COMPONENT applications)
+install(PROGRAMS python/wifi_config DESTINATION bin COMPONENT applications)
 
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)

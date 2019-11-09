@@ -155,12 +155,12 @@ class Network(object):
             return None
 
         # Configure this card
-        self.configuring = interface
+        logging.info("Configuring %s to %d and txpower=%d" %
+                     (interface, frequency, txpower))
         driver.configure(interface, frequency, txpower)
-        self.configuring = None
+        logging.info("Configured: %s" % (interface))
 
         # Add this to the list of interfaces
-        logging.debug("Configured: %s" % (interface))
         self.m_devices.append(interface)
 
         return card
