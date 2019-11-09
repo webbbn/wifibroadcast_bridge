@@ -1,5 +1,5 @@
 [global]
-mode = air
+mode = ground
 loglevel = critical
 sysloglevel = info
 sysloghost = localhost

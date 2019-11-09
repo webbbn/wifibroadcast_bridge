@@ -179,6 +179,6 @@ for iface in net.monitor_interfaces():
 monitor = udev.Monitor.from_netlink(udev_context)
 monitor.filter_by('net')
 for device in iter(monitor.poll, None):
-    if net.is_configured(device.sys_name):
+    if not net.is_configured(device.sys_name):
         net.configure_interface(device.sys_name)
 

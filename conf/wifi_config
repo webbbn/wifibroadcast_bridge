@@ -2,7 +2,7 @@
 frequency = 2412
 txpower = 40
 bitrate = 11
-loglevel = debug
+loglevel = info
 
 [ath9k]
 frequency = 2412
