@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/default/wifi_config
-ExecStart=/usr/bin/wifi_config.py
+ExecStart=/bin/wifi_config
 ExecReload=/bin/kill -1 $MAINPID
 ExecStop=/bin/kill -9 $MAINPID
 TimeoutStopSec=5s

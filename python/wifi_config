@@ -6,6 +6,7 @@ import os
 import logging
 import logging.handlers
 import signal
+import sys
 
 import pyudev as udev
 
@@ -17,7 +18,15 @@ class Card(enum.Enum):
     ath9k = 1
     rtl88xx = 2
 
-config_filename = "/etc/default/wifi_config"
+# Setup some paths based on the directory that this script was run frum.
+root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+# Add the python directory to the python path
+python_dir = os.path.join(root_dir, "lib/python" + str(sys.version_info.major) + \
+                          "." + str(sys.version_info.minor) + "/site-packages")
+sys.path.append(python_dir)
+
+config_filename = os.path.join(root_dir, "etc/default/wifi_config")
 
 udev_context = udev.Context()
 
@@ -40,7 +49,7 @@ class Network(object):
             'frequency': '2412',
             'txpower': '40',
             'bitrate': '11',
-            'loglevel': 'error'
+            'loglevel': 'debug'
         }
         try:
             self.m_config.read(filename)
@@ -54,8 +63,9 @@ class Network(object):
             print("Invalid log level: %s - setting to info" % (args.loglevel))
             log_level = logging.INFO
         logger = logging.getLogger('wifi_config')
-        logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S", \
-                            handlers = [logging.handlers.SysLogHandler(address = "/dev/log")])
+        logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+        #logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S", \
+                            #handlers = [logging.handlers.SysLogHandler(address = "/dev/log")])
 
         # Configure the reload signal handler
         signal.signal(signal.SIGHUP, handler)
@@ -108,28 +118,32 @@ class Network(object):
         # Determine the type of card for this interface
         try:
             driver = pywhw.ifcard(interface)[0]
-            logging.debug("Found wifi card with driver: %s", (driver))
-            if driver == 'rtl88xxau':
-                type = Card.rtl88xx
-            elif driver == 'ath9k_htc':
-                type = Card.ath9k
-            else:
-                logging.debug("Unknown type type: %s", driver)
-                return None
-
+            logging.debug("Found wifi card with driver: %s" % (driver))
         except Exception as e:
-            print(e)
+            logging.error("Error creating the interface for: %s" % (driver))
             return None
 
+
+        # Try to load the module for configuring this device type
+        # If the module doesn't exist, the card is not supported
+        try:
+            module = __import__(driver)
+            class_ = getattr(module, driver)
+            driver = class_(interface)
+        except Exception as e:
+            logging.debug("Unable to load module for driver: %s" % (driver))
+            logging.debug(e)
+            return None
+        logging.info("Found driver of type: %s" % (driver.name()))
+
         # Retrieve the configuration file
-        logging.debug("Configuring: %s of type %s" % (interface, type.name))
-        frequency = self.m_config[type.name].getint('frequency', 0)
+        frequency = self.m_config[driver.name()].getint('frequency', 0)
         if frequency == 0:
             frequency = self.m_config['DEFAULT'].getint('frequency', 0)
-        txpower = self.m_config[type.name].getint('txpower', 0)
+        txpower = self.m_config[driver.name()].getint('txpower', 0)
         if txpower == 0:
             txpower = self.m_config['DEFAULT'].getint('txpower', 0)
-        bitrate = self.m_config[type.name].getint('bitrate', 0)
+        bitrate = self.m_config[driver.name()].getint('bitrate', 0)
         if bitrate == 0:
             bitrate = self.m_config['DEFAULT'].getint('bitrate', 0)
 
@@ -140,78 +154,19 @@ class Network(object):
             logging.error("Error connecting to the interface: " + interface)
             return None
 
-        # Configure the bitrate for this card
-        # This is not supported by pyric, so we have to do it manually.
-        # if bitrate != 0 and type == Card.ath9k:
-        #     try:
-        #         pyw.down(card)
-        #         pyw.modeset(card, 'monitor', flags=['other bss'])
-        #         pyw.up(card)
-        #         logging.debug("Setting the bitrate on interface " + interface + " to " + str(bitrate))
-        #         if os.system("iw dev " + card.dev + " set bitrates legacy-2.4 " + str(bitrate)) != 0:
-        #             #if os.system("iwconfig " + card.dev + " rate 54M fixed") != 0:
-        #             logging.error("Error setting the bitrate for: " + interface)
-        #             return None
-        #         pyw.down(card)
-        #     except pyric.error as e:
-        #         logging.error("Error setting the bitrate for: " + interface)
-        #         logging.error(e)
-        #         return None
-
-        # Bring the card up first (just because)
-        try:
-            os.system("ifconfig " + card.dev + " up")
-        except Exception as e:
-            logging.error("Error bringing the interface up: " + card.dev)
-            logging.error(e)
-            return False
-
-        # Make sure this card is down
-        try:
-            os.system("ip link set " + card.dev + " down")
-        except Exception as e:
-            logging.error("Error bringing the interface down: " + card.dev)
-            logging.error(e)
-            return False
-
-        # Configure the card in monitor mode
-        try:
-            os.system("iw dev " + card.dev + " set type monitor")
-        except pyric.error as e:
-            logging.error(card.dev + " does not support monitor mode")
-            return None
-
-        # Bring the interface up
-        try:
-            os.system("ip link set " + card.dev + " up")
-        except Exception as e:
-            logging.error("Error bringing the interface down: " + card.dev)
-            logging.error(e)
-            return False
-
-        # Configure the transmit power level (some cards don't support this)
-        try:
-            os.system("iw " + card.dev + " set txpower fixed " + str(txpower))
-        except Exception as e:
-            logging.error("Error setting txpower on: " + card.dev)
-            logging.error(e)
-            return False
-
-        # Configure the frequency
-        try:
-            logging.debug("Setting the frequency on interface " + interface + " to " +
-                          str(frequency) + " using iw")
-            os.system("iw %s set freq %s" % (card.dev, str(frequency)))
-        except Exception as e:
-            logging.error("Error setting the wifi frequency on: " + card.dev)
-            logging.error(e)
-            return False
+        # Configure this card
+        self.configuring = interface
+        driver.configure(interface, frequency, txpower)
+        self.configuring = None
 
         # Add this to the list of interfaces
         logging.debug("Configured: %s" % (interface))
         self.m_devices.append(interface)
 
         return card
+
+    def is_configured(self, interface):
+        return interface in self.m_devices
 
 net = Network()
 net.read_config(config_filename)
@@ -224,4 +179,6 @@ for iface in net.monitor_interfaces():
 monitor = udev.Monitor.from_netlink(udev_context)
 monitor.filter_by('net')
 for device in iter(monitor.poll, None):
-    net.configure_interface(device.sys_name)
+    if net.is_configured(device.sys_name):
+        net.configure_interface(device.sys_name)
+
