@@ -1,6 +1,7 @@
 
 import os
 import logging
+import subprocess
 
 class rtl88xxau(object):
     """Configure the rtl8812au wifi adapter"""
@@ -14,6 +15,13 @@ class rtl88xxau(object):
 
     def config_power(self, txpower):
         """Set the power level for this card"""
+
+        # Is it already set?
+        p = subprocess.Popen(['grep', 'rtw_tx_pwr_idx_override=' + str(txpower), self.conf_file], stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        if out.decode('utf-8') != '':
+            logging.debug("Not changing power level configuration")
+            return True
 
         # Unload the module
         try:
