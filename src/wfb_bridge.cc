@@ -225,6 +225,7 @@ int main(int argc, const char** argv) {
 	// Create the receive thread for this socket
 	auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport]() {
 	  bool flushed = false;
+	  uint32_t cntr = 0;
 	  while (1) {
 	    std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
 	    ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
@@ -239,8 +240,10 @@ int main(int argc, const char** argv) {
 	    } else {
 	      flushed = false;
 	    }
-	    msg->msg.resize(count);
-	    outqueue.push(msg);
+	    if (count > 0) {
+	      msg->msg.resize(count);
+	      outqueue.push(msg);
+	    }
 	  }
 	};
 	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
