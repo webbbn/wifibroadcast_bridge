@@ -31,7 +31,7 @@ class rtl88xxau(object):
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i 's/rtw_tx_pwr_idx_override=[^ ]+/rtw_tx_pwr_idx_override='%s'/g' %s" % (txpower, self.conf_file))
+            os.system("sed -i -E 's/rtw_tx_pwr_idx_override=[^ ]+/rtw_tx_pwr_idx_override=%s/g' %s" % (txpower, self.conf_file))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)
