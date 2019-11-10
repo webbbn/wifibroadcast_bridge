@@ -27,6 +27,8 @@ python_dir = os.path.join(root_dir, "lib/python" + str(sys.version_info.major) +
 sys.path.append(python_dir)
 
 config_filename = os.path.join(root_dir, "etc/default/wifi_config")
+if not os.path.exists(config_filename):
+    config_filename = os.path.join(os.path.dirname(root_dir), "etc/default/wifi_config")
 
 udev_context = udev.Context()
 
@@ -127,8 +129,9 @@ class Network(object):
         # Try to load the module for configuring this device type
         # If the module doesn't exist, the card is not supported
         try:
-            module = __import__(driver)
-            class_ = getattr(module, driver)
+            module = __import__('wifibroadcast', globals(), locals(), [driver])
+            submodule = getattr(module, driver)
+            class_ = getattr(submodule, driver)
             driver = class_(interface)
         except Exception as e:
             logging.debug("Unable to load module for driver: %s" % (driver))

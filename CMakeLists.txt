@@ -11,6 +11,19 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -DNDEBUG -DBOOST_LOG_DYN_
 # Add the local include directory to the include path
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# Add the usr directory to most of the paths if the installcation directory is /
+if (${CMAKE_INSTALL_PREFIX} STREQUAL "/")
+  set(BinDir "usr/bin")
+  set(LibDir "usr/lib")
+  set(IncludeDir "usr/include")
+  set(PythonDistDir "dist-packages")
+else ()
+  set(BinDir "bin")
+  set(LibDir "lib")
+  set(IncludeDir "include")
+  set(PythonDistDir "site-packages")
+endif ()
+
 # Find the boost libraries
 find_package(Boost REQUIRED COMPONENTS
   program_options
@@ -22,7 +35,7 @@ include_directories(${Boost_INCLUDE_DIR})
 # Find the pcap library
 find_package(PCAP)
 
-# find the pthread library
+# Find the pthread library
 find_package(Threads)
 
 # Find the python3 interpreter
@@ -30,10 +43,10 @@ if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
   set(Python_ADDITIONAL_VERSIONS "3")
   set(PYTHON_EXECUTABLE "/usr/bin/python3")
   find_package(PythonInterp 3.0 REQUIRED)
-  set(RELATIVE_PYTHON_DIR "lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages")
+  set(RELATIVE_PYTHON_DIR "${LibDir}/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/${PythonDistDir}/wifibroadcast")
 else ()
   find_package(Python3 COMPONENTS Interpreter)
-  set(RELATIVE_PYTHON_DIR "lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages")
+  set(RELATIVE_PYTHON_DIR "${LibDir}/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/${PythonDistDir}/wifibroadcast")
 endif ()
 set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 
@@ -50,14 +63,15 @@ add_executable(wfb_bridge
   src/udp_receive.cc
   src/log_thread.cc
   src/raw_send_thread.cc)
-install(TARGETS wfb_bridge DESTINATION /bin COMPONENT applications)
+install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} pthread)
 
-# Add rules to install the python files
-install(FILES python/rtl88xxau.py DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
-
 # Add rules to install the python executables
-install(PROGRAMS python/wifi_config DESTINATION bin COMPONENT applications)
+install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)
+
+# Add rules to install the python files
+install(DIRECTORY python/ DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application
+  FILES_MATCHING PATTERN "*.py")
 
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
@@ -71,6 +85,9 @@ install(FILES conf/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configurat
 # Add rules to install the services files
 install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
 install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
+
+# Install the include files
+install(DIRECTORY include/ DESTINATION ${IncludeDir} COMPONENT development FILES_MATCHING PATTERN "*.h")
 
 # Add the debian debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
