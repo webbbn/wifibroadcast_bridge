@@ -50,13 +50,19 @@ else ()
 endif ()
 set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 
-# Build the wfb_bridge program
-add_executable(wfb_bridge
-  src/wfb_bridge.cc
+# Create the library
+add_library(wifibroadcast
+  SHARED
   src/raw_socket.cc
   src/fec.c
   src/fec.cc
-  src/radiotap.c
+  src/radiotap.c)
+target_link_libraries(wifibroadcast  ${PCAP_LIBRARY})
+install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
+
+# Build the wfb_bridge program
+add_executable(wfb_bridge
+  src/wfb_bridge.cc
   src/logging.cc
   src/transfer_stats.cc
   src/udp_send.cc
@@ -64,7 +70,7 @@ add_executable(wfb_bridge
   src/log_thread.cc
   src/raw_send_thread.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} pthread)
+target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} wifibroadcast pthread)
 
 # Add rules to install the python executables
 install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)
@@ -87,7 +93,13 @@ install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONE
 install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
 
 # Install the include files
-install(DIRECTORY include/ DESTINATION ${IncludeDir} COMPONENT development FILES_MATCHING PATTERN "*.h")
+install(FILES
+  include/fec.h
+  include/fec.hh
+  include/ieee80211_radiotap.h
+  include/radiotap.h
+  include/raw_socket.hh
+  DESTINATION ${IncludeDir}/wifibroadcast COMPONENT development)
 
 # Add the debian debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
