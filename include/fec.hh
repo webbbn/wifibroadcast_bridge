@@ -105,6 +105,10 @@ public:
     return !is_data_block();
   }
 
+  uint8_t seq_num() const {
+    return header()->seq_num;
+  }
+
 private:
   uint16_t m_pkt_length;
   std::vector<uint8_t> m_data;
@@ -113,7 +117,8 @@ private:
 class FECEncoder {
 public:
 
-  FECEncoder(uint8_t num_blocks = 8, uint8_t num_fec_blocks = 4, uint16_t max_block_size = 1500);
+  FECEncoder(uint8_t num_blocks = 8, uint8_t num_fec_blocks = 4, uint16_t max_block_size = 1500,
+	     uint8_t start_seq_num = 1);
 
   // Get a new data block
   std::shared_ptr<FECBlock> new_block() {
@@ -144,6 +149,25 @@ private:
 
   void encode_blocks();
 };
+
+
+class FECBufferEncoder {
+public:
+  FECBufferEncoder(uint32_t maximum_block_size, float fec_ratio = 0.5) :
+    m_max_block_size(maximum_block_size), m_fec_ratio(fec_ratio), m_seq_num(1) { }
+
+  std::vector<std::shared_ptr<FECBlock> >
+  encode_buffer(const std::vector<uint8_t> &buf);
+
+  std::pair<uint32_t, double> test(uint32_t iterations);
+
+private:
+  uint32_t m_max_block_size;
+  float m_fec_ratio;
+  uint8_t m_seq_num;
+};
+
+
 
 struct FECDecoderStats {
   FECDecoderStats() : total_blocks(0), total_packets(0), dropped_blocks(0), dropped_packets(0),

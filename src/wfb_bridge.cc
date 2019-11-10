@@ -48,13 +48,6 @@ namespace po=boost::program_options;
 namespace pt=boost::property_tree;
 
 
-/************************************************************************************************
- * Global variables
- ************************************************************************************************/
-
-Logger::LoggerP Logger::g_logger;
-
-
 int main(int argc, const char** argv) {
 
   po::options_description desc("Allowed options");

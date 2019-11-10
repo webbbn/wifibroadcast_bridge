@@ -56,14 +56,14 @@ add_library(wifibroadcast
   src/raw_socket.cc
   src/fec.c
   src/fec.cc
-  src/radiotap.c)
-target_link_libraries(wifibroadcast  ${PCAP_LIBRARY})
+  src/radiotap.c
+  src/logging.cc)
+target_link_libraries(wifibroadcast ${Boost_LIBRARIES} ${PCAP_LIBRARY})
 install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
 
 # Build the wfb_bridge program
 add_executable(wfb_bridge
   src/wfb_bridge.cc
-  src/logging.cc
   src/transfer_stats.cc
   src/udp_send.cc
   src/udp_receive.cc
@@ -71,6 +71,10 @@ add_executable(wfb_bridge
   src/raw_send_thread.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} wifibroadcast pthread)
+
+# Build the FEC test program
+add_executable(test_fec src/test_fec.cc)
+target_link_libraries(test_fec ${Boost_LIBRARIES} wifibroadcast)
 
 # Add rules to install the python executables
 install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)

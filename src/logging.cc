@@ -6,6 +6,9 @@ namespace exper=boost::log::expressions;
 namespace kwrds=boost::log::keywords;
 
 
+Logger::LoggerP Logger::g_logger;
+
+
 // Attribute value tag type
 struct severity_tag;
 

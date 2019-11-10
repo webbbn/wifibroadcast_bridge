@@ -1,10 +1,23 @@
 
 #include <math.h>
 
+#include <logging.hh>
+
 #include <fec.hh>
 
-FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size) :
-  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_seq_num(0) {
+inline double cur_time() {
+  struct timeval t;
+  gettimeofday(&t, 0);
+  return double(t.tv_sec) + double(t.tv_usec) * 1e-6;
+}
+
+/*******************************************************************************
+ * FECEncoder
+ ******************************************************************************/
+
+FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size,
+		       uint8_t start_seq_num) :
+  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_seq_num(start_seq_num) {
   // Ensure that the FEC library is initialized
   // This may not work with multiple threads!
   fec_init();
@@ -25,6 +38,9 @@ void FECEncoder::add_block(std::shared_ptr<FECBlock> block) {
   if ((m_num_fec_blocks == 0) || (m_num_blocks == 0)) {
     m_out_blocks.push(block);
     ++m_seq_num;
+    if(m_seq_num == 0) {
+      ++m_seq_num;
+    }
   } else {
     m_in_blocks.push_back(block);
 
@@ -82,8 +98,16 @@ void FECEncoder::encode_blocks() {
 
   // Prepare for the next set of blocks.
   ++m_seq_num;
+  if(m_seq_num == 0) {
+    ++m_seq_num;
+  }
   m_in_blocks.clear();
 }
+
+
+/*******************************************************************************
+ * FECDecoderEncoder
+ ******************************************************************************/
 
 FECDecoder::FECDecoder() : m_block_size(0) {
   fec_init();
@@ -299,4 +323,115 @@ FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2) 
   ret.lost_sync = s1.lost_sync + s2.lost_sync;
   ret.bytes = s1.bytes + s2.bytes;
   return ret;
+}
+
+
+/*******************************************************************************
+ * FECBufferEncoder
+ ******************************************************************************/
+
+std::vector<std::shared_ptr<FECBlock> >
+FECBufferEncoder::encode_buffer(const std::vector<uint8_t> &buf) {
+  size_t len = buf.size();
+  std::vector<std::shared_ptr<FECBlock> > ret;
+
+  // Divide the buffer into blocks as close to the maximum block size as possible
+  uint32_t block_size = m_max_block_size;
+  uint32_t nblocks = len / block_size;
+
+  // We can only encode a maximum of 255 blocks
+  if (nblocks > 255) {
+    return ret;
+  }
+  if (nblocks == 0) {
+    block_size = len;
+    nblocks = 1;
+  } else if ((len % block_size) != 0) {
+    nblocks = len / block_size;
+    block_size = len / nblocks;
+    if ((nblocks * block_size) < len) {
+      ++nblocks;
+    }
+  }
+
+  // Create the encoder
+  uint8_t nfecblocks = static_cast<uint8_t>(std::ceil(nblocks * m_fec_ratio));
+  FECEncoder enc(nblocks, nfecblocks, block_size, m_seq_num++);
+  if (m_seq_num == 0) {
+    ++m_seq_num;
+  }
+
+  // Encode all the blocks
+  uint32_t count = 0;
+  for (uint32_t b = 0; b < nblocks; ++b) {
+    uint32_t start = b * block_size;
+    uint32_t end = std::min(start + block_size, static_cast<uint32_t>(len));
+    uint32_t length = end - start;
+    std::shared_ptr<FECBlock> blk = enc.get_next_block(length);
+    std::copy(buf.begin() + start, buf.begin() + end, blk->data());
+    enc.add_block(blk);
+    count += length;
+  }
+  LOG_DEBUG << "Encoded " << count << " bytes and " << nblocks << " blocks";
+
+  // Pull all the blocks out of the encoder
+  for (std::shared_ptr<FECBlock> blk = enc.get_block(); blk; blk = enc.get_block()) {
+    ret.push_back(blk);
+  }
+
+  return ret;
+}
+
+std::pair<uint32_t, double> FECBufferEncoder::test(uint32_t iterations) {
+  uint32_t min_buffer_size = 10;
+  uint32_t max_buffer_size = m_max_block_size * 255;
+
+  uint32_t failed = 0;
+  size_t bytes = 0;
+  double start_time = cur_time();
+  for (uint32_t i = 0; i < iterations; ++i) {
+
+    // Create a random buffer of data
+    uint32_t buf_size = min_buffer_size + rand() % (max_buffer_size - min_buffer_size);
+    bytes += buf_size;
+    std::vector<uint8_t> buf(buf_size);
+    for (uint32_t j = 0; j < buf_size; ++j) {
+      buf[j] = rand() % 255;
+    }
+    LOG_DEBUG << "Iteration: " << i << "  buffer size: " << buf_size;
+
+    // Encode it
+    std::vector<std::shared_ptr<FECBlock> > blks = encode_buffer(buf);
+    LOG_DEBUG << blks.size() << " blocks created";
+
+    // Decode it
+    FECDecoder dec;
+    std::vector<uint8_t> obuf;
+    uint32_t dec_count = 0;
+    for (std::shared_ptr<FECBlock> blk : blks) {
+      dec.add_block(blk->pkt_data(), blk->pkt_length());
+    }
+    for (std::shared_ptr<FECBlock> sblk = dec.get_block(); sblk; sblk = dec.get_block()) {
+      std::copy(sblk->data(), sblk->data() + sblk->data_length(),
+		std::back_inserter(obuf));
+      ++dec_count;
+    }
+    LOG_DEBUG << "Decoded " << dec_count << " blocks";
+
+    // Compare
+    if (obuf.size() != buf.size()) {
+      LOG_ERROR << "Buffers are different sizes: " << obuf.size() << " != " << buf.size();
+      ++failed;
+    } else {
+      for (size_t j = 0; j < buf.size(); ++j) {
+	if (obuf[j] != buf[j]) {
+	  LOG_ERROR << "Buffers differ at location " << j << ": " << obuf[j] << " != " << buf[j];
+	  ++failed;
+	}
+      }
+    }
+  }
+
+  return std::make_pair(iterations - failed,
+			8e-6 * static_cast<double>(bytes) / (cur_time() - start_time));
 }
