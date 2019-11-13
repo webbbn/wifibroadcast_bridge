@@ -17,6 +17,7 @@ inline double cur_time() {
 
 std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_size,
 				     uint32_t iterations) {
+  FECDecoder dec;
   uint32_t min_buffer_size = 10;
   uint32_t max_buffer_size = max_block_size * 255;
 
@@ -39,7 +40,6 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
     LOG_DEBUG << blks.size() << " blocks created";
 
     // Decode it
-    FECDecoder dec;
     std::vector<uint8_t> obuf;
     uint32_t dec_count = 0;
     for (std::shared_ptr<FECBlock> blk : blks) {

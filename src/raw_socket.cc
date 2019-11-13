@@ -23,6 +23,7 @@
 #include <logging.hh>
 #include <pcap-bpf.h>
 #include <radiotap.h>
+#include <radiotap_iter.h>
 
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
 #define IEEE80211_RADIOTAP_MCS_HAVE_MCS   0x02
@@ -434,7 +435,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
 
   struct ieee80211_radiotap_iterator rti;
   if (ieee80211_radiotap_iterator_init(&rti,(struct ieee80211_radiotap_header *)pcap_packet_data,
-				       pcap_packet_header->len) < 0) {
+				       pcap_packet_header->len, NULL) < 0) {
     LOG_ERROR << "rx ERROR: radiotap_iterator_init < 0";
     return false;
   }
