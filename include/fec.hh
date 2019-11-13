@@ -153,11 +153,15 @@ private:
 
 class FECBufferEncoder {
 public:
-  FECBufferEncoder(uint32_t maximum_block_size, float fec_ratio = 0.5) :
+  FECBufferEncoder(uint32_t maximum_block_size = 1400, float fec_ratio = 0.5) :
     m_max_block_size(maximum_block_size), m_fec_ratio(fec_ratio), m_seq_num(1) { }
 
   std::vector<std::shared_ptr<FECBlock> >
-  encode_buffer(const std::vector<uint8_t> &buf);
+  encode_buffer(const uint8_t* buf, size_t length);
+  std::vector<std::shared_ptr<FECBlock> >
+  encode_buffer(const std::vector<uint8_t> &buf) {
+    return encode_buffer(buf.data(), buf.size());
+  }
 
   std::pair<uint32_t, double> test(uint32_t iterations);
 
