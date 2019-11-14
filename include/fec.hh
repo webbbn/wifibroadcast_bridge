@@ -30,74 +30,92 @@ struct __attribute__((__packed__)) FECHeader {
 class FECBlock {
 public:
   FECBlock(uint8_t seq_num, uint8_t block, uint8_t nblocks, uint8_t nfec_blocks,
-	   uint16_t data_length) :
-    m_data(data_length + sizeof(FECHeader)) {
+	   uint16_t max_block_len, uint16_t data_length) {
+    m_data_length = max_block_len + sizeof(FECHeader) - 2;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
     FECHeader *h = header();
     h->seq_num = seq_num;
     h->block = block;
     h->n_blocks = nblocks;
     h->n_fec_blocks = nfec_blocks;
     h->length = data_length;
-    m_pkt_length = data_length + sizeof(FECHeader);
   }
+
+  // Create a block from a packet buffer
   FECBlock(const uint8_t *buf, uint16_t pkt_length) {
-    m_data.resize(pkt_length);
-    std::copy(buf, buf + pkt_length, m_data.data());
-    m_pkt_length = pkt_length;
+    m_data_length = pkt_length;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
+    std::copy(buf, buf + pkt_length, m_data.get());
   }
+
+  // Create a block from an existing header
   FECBlock(const FECHeader &h, uint16_t block_length) {
-    m_data.resize(block_length + sizeof(FECHeader) - 2);
+    m_data_length = block_length + sizeof(FECHeader) - 2;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
     *header() = h;
     data_length(block_length - 2);
   }
 
+  // The FEC block size, which includes the data and data length fields
   uint16_t block_size() const {
-    return (m_pkt_length + 2) - sizeof(FECHeader);
+    return data_length() + 2;
   }
 
+  // Change the block size to the desired FEC block size, which could be
+  // smaller than the maximum block size.
+  void adjust_block_size(uint16_t block_size) {
+    m_data_length = block_size + sizeof(FECHeader) - 2;
+  }
+
+  // A pointer to the data (does not include the header or length fields)
   uint8_t *data() {
-    return m_data.data() + sizeof(FECHeader);
+    return m_data.get() + sizeof(FECHeader);
   }
   const uint8_t *data() const {
     return data();
   }
 
+  // The length of data (does not include the header or length fields)
   uint16_t data_length() const {
     return header()->length;
   }
   void data_length(uint16_t len) {
     header()->length = len;
-    m_pkt_length = len + sizeof(FECHeader);
   }
 
+  // A pointer to the data that should be included in FEC (everything except the header)
   uint8_t *fec_data() {
-    return m_data.data() + sizeof(FECHeader) - 2;
+    return m_data.get() + sizeof(FECHeader) - 2;
   }
   const uint8_t *fec_data() const {
     return fec_data();
   }
 
+  // A pointer to the header
   FECHeader *header() {
-    return reinterpret_cast<FECHeader*>(m_data.data());
+    return reinterpret_cast<FECHeader*>(m_data.get());
   }
   const FECHeader *header() const {
-    return reinterpret_cast<const FECHeader*>(m_data.data());
+    return reinterpret_cast<const FECHeader*>(m_data.get());
   }
 
+  // A pointer to all packet data (header + length + data)
   uint8_t *pkt_data() {
-    return m_data.data();
+    return m_data.get();
   }
   const uint8_t *pkt_data() const {
-    return pkt_data();
+    return m_data.get();
   }
 
+  // The length of the entire packet (header + length + data)
   uint16_t pkt_length() const {
-    return m_pkt_length;
-  }
-  void pkt_length(uint16_t len) {
-    m_pkt_length = len;
+    return m_data_length;
   }
 
+  // What type of block is this, data or FEC?
   bool is_data_block() const {
     return header()->block < header()->n_blocks;
   }
@@ -105,13 +123,14 @@ public:
     return !is_data_block();
   }
 
+  // The sequence number
   uint8_t seq_num() const {
     return header()->seq_num;
   }
 
 private:
-  uint16_t m_pkt_length;
-  std::vector<uint8_t> m_data;
+  std::unique_ptr<uint8_t> m_data;
+  uint16_t m_data_length;
 };
 
 class FECEncoder {
@@ -122,7 +141,8 @@ public:
 
   // Get a new data block
   std::shared_ptr<FECBlock> new_block() {
-    return std::shared_ptr<FECBlock>(new FECBlock(0, 0, m_num_blocks, m_num_fec_blocks, 0));
+    return std::shared_ptr<FECBlock>(new FECBlock(0, 0, m_num_blocks, m_num_fec_blocks,
+						  m_max_block_size, 0));
   }
 
   // Allocate and initialize the next data block.
@@ -144,6 +164,7 @@ private:
   uint8_t m_seq_num;
   uint8_t m_num_blocks;
   uint8_t m_num_fec_blocks;
+  uint16_t m_max_block_size;
   std::vector<std::shared_ptr<FECBlock> > m_in_blocks;
   std::queue<std::shared_ptr<FECBlock> > m_out_blocks;
 
@@ -153,7 +174,7 @@ private:
 
 class FECBufferEncoder {
 public:
-  FECBufferEncoder(uint32_t maximum_block_size = 1400, float fec_ratio = 0.5) :
+  FECBufferEncoder(uint32_t maximum_block_size = 1460, float fec_ratio = 0.5) :
     m_max_block_size(maximum_block_size), m_fec_ratio(fec_ratio), m_seq_num(1) { }
 
   std::vector<std::shared_ptr<FECBlock> >

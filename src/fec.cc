@@ -11,7 +11,8 @@
 
 FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size,
 		       uint8_t start_seq_num) :
-  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_seq_num(start_seq_num) {
+  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_max_block_size(max_block_size),
+  m_seq_num(start_seq_num) {
   // Ensure that the FEC library is initialized
   // This may not work with multiple threads!
   fec_init();
@@ -20,7 +21,7 @@ FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_
 // Allocate and initialize the next data block.
 std::shared_ptr<FECBlock> FECEncoder::get_next_block(uint16_t length) {
   return std::shared_ptr<FECBlock>(new FECBlock(m_seq_num, m_in_blocks.size(), m_num_blocks,
-						m_num_fec_blocks, length));
+						m_num_fec_blocks, m_max_block_size, length));
 }
 
 // Add an incoming data block to be encoded
@@ -66,13 +67,19 @@ void FECEncoder::encode_blocks() {
     return;
   }
 
-  // Create the FEC arrays of pointers to the data blocks.
-  std::vector<uint8_t*> data_blocks(m_num_blocks);
+  // The block size will be calculated as the size of the largest block in the sequence
   uint16_t block_size = 0;
   for (uint8_t i = 0; i < num_blocks; ++i) {
     std::shared_ptr<FECBlock> block = m_in_blocks[i];
+    block_size = std::max(block_size, block->block_size());
+  }
+  
+  // Create the FEC arrays of pointers to the data blocks.
+  std::vector<uint8_t*> data_blocks(m_num_blocks);
+  for (uint8_t i = 0; i < num_blocks; ++i) {
+    std::shared_ptr<FECBlock> block = m_in_blocks[i];
+    block->adjust_block_size(block_size);
     data_blocks[i] = block->fec_data();
-    block_size = std::max(block_size, static_cast<uint16_t>(block->header()->length + 2));
     block->header()->n_blocks = num_blocks;
     m_out_blocks.push(block);
   }
@@ -81,9 +88,8 @@ void FECEncoder::encode_blocks() {
   std::vector<uint8_t*> fec_blocks(m_num_fec_blocks);
   for (uint8_t i = 0; i < m_num_fec_blocks; ++i) {
     std::shared_ptr<FECBlock> block(new FECBlock(m_seq_num, num_blocks + i, num_blocks,
-						 m_num_fec_blocks, block_size - 2));
+						 m_num_fec_blocks, block_size, block_size - 2));
     fec_blocks[i] = block->fec_data();
-    block->pkt_length(block_size + sizeof(FECHeader) - 2);
     m_out_blocks.push(block);
   }
 
@@ -179,7 +185,9 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   }
 
   // The current block size is equal to the block size of the largest block.
-  m_block_size = std::max(m_block_size, blk->block_size());
+  if (blk->is_data_block()) {
+    m_block_size = std::max(m_block_size, blk->block_size());
+  }
 
   // Is this a data block or FEC block?
   if (blk->is_data_block()) {
@@ -329,33 +337,33 @@ FECBufferEncoder::encode_buffer(const uint8_t *buf, size_t len) {
   std::vector<std::shared_ptr<FECBlock> > ret;
 
   // Divide the buffer into blocks as close to the maximum block size as possible
-  uint32_t block_size = m_max_block_size;
-  uint32_t nblocks = len / block_size;
+  uint32_t nblocks = static_cast<uint32_t>(std::ceil(static_cast<double>(len) / m_max_block_size));
+  uint32_t block_size = static_cast<uint32_t>(std::ceil(static_cast<double>(len) / nblocks));
 
   // We can only encode a maximum of 255 blocks
   if (nblocks > 255) {
     return ret;
   }
-  if (nblocks == 0) {
+
+  // Do we have less than a block worth of data?
+  if (len <= m_max_block_size) {
     block_size = len;
     nblocks = 1;
-  } else if ((len % block_size) != 0) {
-    nblocks = len / block_size;
-    block_size = len / nblocks;
-    if ((nblocks * block_size) < len) {
-      ++nblocks;
-    }
   }
 
   // Create the encoder
   uint8_t nfecblocks = static_cast<uint8_t>(std::ceil(nblocks * m_fec_ratio));
-  FECEncoder enc(nblocks, nfecblocks, block_size, m_seq_num++);
+  FECEncoder enc(nblocks, nfecblocks, m_max_block_size + 2, m_seq_num++);
   if (m_seq_num == 0) {
     ++m_seq_num;
   }
 
   // Encode all the blocks
   uint32_t count = 0;
+  bool debug = false;
+  if (nblocks < 3) {
+    debug = true;
+  }
   for (uint32_t b = 0; b < nblocks; ++b) {
     uint32_t start = b * block_size;
     uint32_t end = std::min(start + block_size, static_cast<uint32_t>(len));

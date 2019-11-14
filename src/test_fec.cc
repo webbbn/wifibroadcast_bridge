@@ -18,8 +18,8 @@ inline double cur_time() {
 std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_size,
 				     uint32_t iterations) {
   FECDecoder dec;
-  uint32_t min_buffer_size = 10;
-  uint32_t max_buffer_size = max_block_size * 255;
+  uint32_t min_buffer_size = max_block_size * 6;
+  uint32_t max_buffer_size = max_block_size * 100;
 
   uint32_t failed = 0;
   size_t bytes = 0;
@@ -41,16 +41,16 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
 
     // Decode it
     std::vector<uint8_t> obuf;
-    uint32_t dec_count = 0;
+    uint32_t drop_count = 0;
     for (std::shared_ptr<FECBlock> blk : blks) {
-      dec.add_block(blk->pkt_data(), blk->pkt_length());
+      if ((rand() % 10) != 0) {
+	dec.add_block(blk->pkt_data(), blk->pkt_length());
+      }
     }
     for (std::shared_ptr<FECBlock> sblk = dec.get_block(); sblk; sblk = dec.get_block()) {
       std::copy(sblk->data(), sblk->data() + sblk->data_length(),
 		std::back_inserter(obuf));
-      ++dec_count;
     }
-    LOG_DEBUG << "Decoded " << dec_count << " blocks";
 
     // Compare
     if (obuf.size() != buf.size()) {
@@ -61,6 +61,7 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
 	if (obuf[j] != buf[j]) {
 	  LOG_ERROR << "Buffers differ at location " << j << ": " << obuf[j] << " != " << buf[j];
 	  ++failed;
+	  break;
 	}
       }
     }
