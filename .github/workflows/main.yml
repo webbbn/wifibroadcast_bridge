@@ -9,6 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: update-submodules
+      run: git submodule update --init
     - name: install-dependencies
       run: |
         sudo apt-get update
