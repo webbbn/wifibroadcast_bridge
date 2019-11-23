@@ -86,8 +86,8 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
   for (const auto &v : conf) {
     const std::string &group = v.first;
 
-    // Ignore global options here.
-    if (group == "global") {
+    // Ignore global options and the output-only status port
+    if ((group == "global") || (group == "packed_status_down")) {
       continue;
     }
 
@@ -102,7 +102,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       // Get the UDP port number (required except for status).
       uint16_t inport = v.second.get<uint16_t>("inport", 0);
       if ((inport == 0) && (group != "status_down") && (group != "status_up")) {
-	LOG_CRITICAL << "No inport specified for " << name;
+	LOG_CRITICAL << "No inport specified for " << group;
 	return false;
       }
 
@@ -112,7 +112,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       // Get the port number (required).
       uint8_t port = v.second.get<uint16_t>("port", 0);
       if (port == 0) {
-	LOG_CRITICAL << "No port specified for " << name;
+	LOG_CRITICAL << "No port specified for " << group;
 	return false;
       }
 
