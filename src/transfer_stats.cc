@@ -7,6 +7,7 @@
 
 #include <transfer_stats.hh>
 
+
 const float prev_weight = 0.02;
 
 transfer_stats_t::transfer_stats_t(uint32_t _sequences, uint32_t _blocks_in, uint32_t _blocks_out,
@@ -126,6 +127,15 @@ std::string TransferStats::serialize() {
      << m_latency << ","
      << m_rssi;
   return ss.str();
+}
+
+void TransferStats::timeout() {
+  m_queue_size = 0;
+  m_enc_time = 0;
+  m_send_time = 0;
+  m_pkt_time = 0;
+  m_rssi = -100;
+  m_latency = 0;
 }
 
 const std::string &TransferStats::name() {

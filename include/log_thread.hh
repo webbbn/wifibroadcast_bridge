@@ -36,4 +36,5 @@ struct Message {
 
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out);
+		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out,
+		std::shared_ptr<UDPDestination> packed_udp_out);

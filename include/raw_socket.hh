@@ -26,6 +26,7 @@ struct monitor_message_t {
   uint16_t channel_flag;
   uint8_t radiotap_flags;
   int8_t rssi;
+  uint16_t lock_quality;
   uint16_t latency_ms;
   std::vector<uint8_t> antennas;
   std::vector<int8_t> rssis;
@@ -66,7 +67,7 @@ public:
 
   bool add_device(const std::string &device);
 
-  bool receive(monitor_message_t &msg);
+  bool receive(monitor_message_t &msg, std::chrono::duration<double> timeout);
 
 private:
   bool m_ground;

@@ -1,6 +1,6 @@
 [global]
-mode = air
-loglevel = critical
+mode = ground
+loglevel = info
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5
@@ -13,7 +13,7 @@ direction = down
 port = 1
 inport = 5600
 outport = 5600
-outhost = 192.168.5.136
+outhost = 192.168.5.7
 blocksize = 1500
 blocks = 8
 fec = 4
@@ -30,7 +30,7 @@ direction = down
 port = 2
 inport = 14550
 outport = 14550
-outhost = 127.0.0.1
+outhost = 192.168.5.7
 type = data
 priority = 3
 mcs = 1
@@ -119,3 +119,9 @@ mcs = 1
 stbc = 1
 ldpc = 1
 datarate = 0
+
+[packed_status_down]
+name = UDP port to send packed status messages to
+direction = down
+outport = 5003
+outhost = 192.168.5.7

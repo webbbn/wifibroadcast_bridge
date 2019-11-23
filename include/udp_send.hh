@@ -23,11 +23,11 @@ struct UDPDestination {
   int fdout;
   FECDecoderStats prev_stats;
   std::shared_ptr<FECDecoder> fec;
+  bool is_status;
 };
 
 std::string hostname_to_ip(const std::string &hostname);
 
 void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 		   const std::vector<std::shared_ptr<UDPDestination> > &udp_out,
-		   int send_sock, uint8_t status_port, TransferStats &stats, 
-		   TransferStats &stats_other);
+		   int send_sock, TransferStats &stats, TransferStats &stats_other);

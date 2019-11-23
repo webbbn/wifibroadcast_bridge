@@ -26,7 +26,7 @@ std::string hostname_to_ip(const std::string &hostname) {
 
 UDPDestination::UDPDestination(uint16_t port, const std::string &hostname,
 			       std::shared_ptr<FECDecoder> enc) :
-  fec(enc), fdout(0) {
+  fec(enc), fdout(0), is_status(false) {
 
   // Initialize the UDP output socket.
   memset(&s, '\0', sizeof(struct sockaddr_in));
@@ -58,8 +58,7 @@ UDPDestination::UDPDestination(const std::string &filename, std::shared_ptr<FECD
 // Retrieve messages from incoming raw socket queue and send the UDP packets.
 void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 		   const std::vector<std::shared_ptr<UDPDestination> > &udp_out,
-		   int send_sock, uint8_t status_port, TransferStats &stats, 
-		   TransferStats &stats_other) {
+		   int send_sock, TransferStats &stats, TransferStats &stats_other) {
   double prev_time = cur_time();
   size_t write_errors = 0;
   while (1) {
@@ -103,7 +102,7 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
 	}
 
 	// If this is a link status message, parse it and update the stats.
-	if (msg->port == status_port) {
+	if (udp_out[msg->port]->is_status) {
 	  std::string s(block->data(), block->data() + block->data_length());
 	  stats_other.update(s);
 	}

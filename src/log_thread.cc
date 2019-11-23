@@ -14,7 +14,8 @@ double mbps(tmpl__T v1, tmpl__T v2, double time) {
 // Send status messages to the other radio and log the FEC stats periodically
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out) {
+		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out,
+		std::shared_ptr<UDPDestination> packed_udp_out) {
 
   // Open the UDP send socket
   int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -45,6 +46,42 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       std::string outmsg = stats.serialize();
       sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
 	     (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
+
+      // Create the packed status message and send it.
+      if (packed_udp_out) {
+	transfer_stats_t s = stats.get_stats();
+	transfer_stats_t os = stats_other.get_stats();
+	wifibroadcast_rx_status_forward_t ps;
+	ps.damaged_block_cnt = s.block_errors;
+	ps.lost_packet_cnt = s.sequence_errors;
+	ps.skipped_packet_cnt = 0;
+	ps.injection_fail_cnt = os.inject_errors;
+	ps.received_packet_cnt = s.blocks_in;
+	ps.kbitrate = 8 * s.bytes_in / 1000;
+	ps.kbitrate_measured = 0;
+	ps.kbitrate_set = 0;
+	ps.lost_packet_cnt_telemetry_up = os.block_errors;
+	ps.lost_packet_cnt_telemetry_down = 0;
+	ps.lost_packet_cnt_msp_up = 0;
+	ps.lost_packet_cnt_msp_down = 0;
+	ps.lost_packet_cnt_rc = 0;
+	ps.current_signal_joystick_uplink = os.rssi;
+	ps.current_signal_telemetry_uplink = os.rssi;
+	ps.joystick_connected = 0;
+	ps.cpuload_gnd = 0;
+	ps.temp_gnd = 0;
+	ps.cpuload_air = 0;
+	ps.temp_air = 0;
+	ps.wifi_adapter_cnt = 1;
+	ps.adapter[0].received_packet_cnt = s.blocks_in;
+	ps.adapter[0].current_signal_dbm = s.rssi;
+	ps.adapter[0].type = 1;
+	ps.adapter[0].signal_good = (s.rssi > -100);
+
+	sendto(send_sock, reinterpret_cast<uint8_t*>(&ps), sizeof(ps), 0,
+	       (struct sockaddr *)&(packed_udp_out->s), sizeof(struct sockaddr_in));
+      }
+
       last_stat = t;
     }
 

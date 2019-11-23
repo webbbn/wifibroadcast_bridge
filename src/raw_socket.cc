@@ -25,6 +25,9 @@
 #include <radiotap.h>
 #include <radiotap_iter.h>
 
+#define PCAP_PACKET_CAPTURE_SIZE 65536 // Maximum receive message size
+#define PCAP_PACKET_BUFFER_TIMEOUT_MS 1 // Don't wait for multiple messages
+
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
 #define IEEE80211_RADIOTAP_MCS_HAVE_MCS   0x02
 #define IEEE80211_RADIOTAP_MCS_HAVE_GI    0x04
@@ -348,7 +351,8 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   // open the interface in pcap
   char errbuf[PCAP_ERRBUF_SIZE];
   errbuf[0] = '\0';
-  m_ppcap = pcap_open_live(device.c_str(), 2350, 0, 100, errbuf);
+  m_ppcap = pcap_open_live(device.c_str(), PCAP_PACKET_CAPTURE_SIZE, 0,
+			   PCAP_PACKET_BUFFER_TIMEOUT_MS, errbuf);
   if (m_ppcap == NULL) {
     LOG_ERROR << "Unable to open " + device + ": " + std::string(errbuf);
     return false;
@@ -359,9 +363,16 @@ bool RawReceiveSocket::add_device(const std::string &device) {
     return false;
   }
 
+  // Set non-blocking mode so that we can control timeouts
+  if (pcap_setnonblock(m_ppcap, 1, errbuf) == PCAP_ERROR) {
+    LOG_ERROR << "Unable to set non-blocking mode on raw send socket";
+    LOG_ERROR << errbuf;
+    return false;
+  }
+
   int nLinkEncap = pcap_datalink(m_ppcap);
   if (nLinkEncap != DLT_IEEE802_11_RADIO) {
-    LOG_ERROR << "ERROR: unknown encapsulation on " + device +
+    LOG_ERROR << "Unknown encapsulation on " + device +
       "! check if monitor mode is supported and enabled";
     return false;
   }
@@ -388,12 +399,19 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   return true;
 }
 
-bool RawReceiveSocket::receive(monitor_message_t &msg) {
+bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<double> timeout) {
   struct pcap_pkthdr *pcap_packet_header = NULL;
   uint8_t const *pcap_packet_data = NULL;
 
+  auto start = std::chrono::high_resolution_clock::now();
   int retval;
-  while ((retval = pcap_next_ex(m_ppcap, &pcap_packet_header, &pcap_packet_data)) == 0) { }
+  while((retval = pcap_next_ex(m_ppcap, &pcap_packet_header, &pcap_packet_data)) == 0) {
+    auto cur = std::chrono::high_resolution_clock::now();
+    if ((cur - start) > timeout) {
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
   if (retval < 0) {
     LOG_ERROR << "Error receiving from the raw data socket.";
     LOG_ERROR << "  " << std::string(pcap_geterr(m_ppcap));
@@ -460,6 +478,9 @@ bool RawReceiveSocket::receive(monitor_message_t &msg) {
       break;
     case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
       msg.rssis.push_back(*reinterpret_cast<int8_t*>(rti.this_arg));
+      break;
+    case IEEE80211_RADIOTAP_LOCK_QUALITY:
+      msg.lock_quality = *((uint16_t *)rti.this_arg);
       break;
     }
   }
