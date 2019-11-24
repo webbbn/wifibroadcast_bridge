@@ -74,7 +74,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
     LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
     packed_status_host = conf.get<std::string>("packed_status_down.outhost", "");
     packed_status_port = conf.get<uint16_t>("packed_status_down.outport", 0);
-    LOG_INFO << "Sending packed status to udp://" << status_host << ":" << status_port;
+    LOG_INFO << "Sending packed status to udp://" << packed_status_host << ":" << packed_status_port;
   } else {
     status_host = conf.get<std::string>("status_up.outhost", "");
     status_port = conf.get<uint16_t>("status_up.outport", 0);
