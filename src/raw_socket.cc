@@ -458,8 +458,8 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
     return false;
   }
 
-  msg.antennas.clear();
   msg.rssis.clear();
+  uint8_t antenna = 0;
   int n;
   while ((n = ieee80211_radiotap_iterator_next(&rti)) == 0) {
     switch (rti.this_arg_index) {
@@ -471,13 +471,16 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
       msg.channel_flag = *((uint16_t *)(rti.this_arg + 2));
       break;
     case IEEE80211_RADIOTAP_ANTENNA:
-      msg.antennas.push_back(*reinterpret_cast<uint8_t*>(rti.this_arg));
+      antenna = *reinterpret_cast<uint8_t*>(rti.this_arg);
       break;
     case IEEE80211_RADIOTAP_FLAGS:
       msg.radiotap_flags = *rti.this_arg;
       break;
     case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
-      msg.rssis.push_back(*reinterpret_cast<int8_t*>(rti.this_arg));
+      while (msg.rssis.size() <= antenna) {
+	msg.rssis.push_back(-100);
+      }
+      msg.rssis[antenna] = *reinterpret_cast<int8_t*>(rti.this_arg);
       break;
     case IEEE80211_RADIOTAP_LOCK_QUALITY:
       msg.lock_quality = *((uint16_t *)rti.this_arg);

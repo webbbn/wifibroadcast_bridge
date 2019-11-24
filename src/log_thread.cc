@@ -2,6 +2,8 @@
 #include <iomanip>
 #include <thread>
 
+#include <boost/format.hpp>
+
 #include <logging.hh>
 #include <log_thread.hh>
 
@@ -88,41 +90,63 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
     // Post a log message if it's time
     double log_dur = t - last_log;
     if (log_dur >= syslog_period) {
+      bool is_ground = (stats.name() == "ground");
       transfer_stats_t s = stats.get_stats();
-      LOG_INFO
-	<< std::setprecision(3)
-	<< stats.name() << ":  "
-	<< "int: " << log_dur << "  "
-	<< "seq: " << (s.sequences - ps.sequences) << "/"
-	<< (s.sequence_errors - ps.sequence_errors) << "  "
-	<< "blk s,r: " << (s.blocks_out - ps.blocks_out) << "/"
-	<< s.inject_errors - ps.inject_errors << " "
-	<< (s.blocks_in - ps.blocks_in) << "/"
-	<< s.block_errors - ps.block_errors << "  "
-	<< "rate s,r: " << mbps(s.bytes_out, ps.bytes_out, log_dur) << "/"
-	<< mbps(s.bytes_in, ps.bytes_in, log_dur) << " Mbps"
-	<< "  times (e/s/t): " << s.encode_time << "/"<< s.send_time << "/"
-	<< s.pkt_time << " us"
-	<< "  lat: " << s.latency << " ms"
-	<< "  RSSI: " << static_cast<int16_t>(std::round(s.rssi));
+      std::string blks = is_ground ?
+	(boost::str(boost::format("%4d %4d %4d") % 
+		    (s.blocks_in - ps.blocks_in) %
+		    (s.blocks_out - ps.blocks_out) %
+		    (s.block_errors - ps.block_errors))) :
+	(boost::str(boost::format("%4d %4d %4d") % 
+		    (s.blocks_out - ps.blocks_out) %
+		    (s.blocks_in - ps.blocks_in) %
+		    (s.block_errors - ps.block_errors)));
+      std::string times = boost::str(boost::format("%3d %3d %3d") % 
+				     static_cast<uint32_t>(std::round(s.encode_time)) %
+				     static_cast<uint32_t>(std::round(s.send_time)) %
+				     static_cast<uint32_t>(std::round(s.pkt_time)));
+      LOG_INFO << "Name   Interval Seq(r/e)  Blocks(d/u/e)  Inj  Rate(d/u)   Times(e/s/t)Us  LatMs RSSI";
+      LOG_INFO << boost::format
+	("%-6s %4.2f s %4d %4d   %-14s %3d %5.2f %5.2f  %14s  %3d   %4d") %
+	stats.name() %
+	std::round(log_dur) %
+	(s.sequences - ps.sequences) %
+	(s.sequence_errors - ps.sequence_errors) %
+	blks %
+	(s.inject_errors - ps.inject_errors) %
+	mbps(s.bytes_in, ps.bytes_in, log_dur) %
+	mbps(s.bytes_out, ps.bytes_out, log_dur) %
+	times %
+	static_cast<uint32_t>(std::round(s.latency)) %
+	static_cast<int16_t>(std::round(s.rssi));
       ps = s;
       transfer_stats_t so = stats_other.get_stats();
-      LOG_INFO
-	<< std::setprecision(3)
-	<< stats_other.name() << ":  "
-	<< "int: " << log_dur << "  "
-	<< "seq: " << (so.sequences - pso.sequences) << "/"
-	<< (so.sequence_errors - pso.sequence_errors) << "  "
-	<< "blk s,r: " << (so.blocks_out - pso.blocks_out) << "/"
-	<< so.inject_errors - pso.inject_errors << " "
-	<< (so.blocks_in - pso.blocks_in) << "/"
-	<< so.block_errors - pso.block_errors << "  "
-	<< "rate s,r: " << mbps(so.bytes_out, pso.bytes_out, log_dur) << "/"
-	<< mbps(so.bytes_in, pso.bytes_in, log_dur) << " Mbps"
-	<< "  times (e/s/t): " << so.encode_time << "/"	<< so.send_time << "/"
-	<< so.pkt_time << " us"
-	<< "  lat: " << so.latency << " ms"
-	<< "  RSSI: " << static_cast<int16_t>(std::round(so.rssi));
+      std::string oblks = is_ground ?
+	(boost::str(boost::format("%4d %4d %4d") % 
+		    (so.blocks_out - pso.blocks_out) %
+		    (so.blocks_in - pso.blocks_in) %
+		    (so.block_errors - pso.block_errors))) :
+	(boost::str(boost::format("%4d %4d %4d") % 
+		    (so.blocks_in - pso.blocks_in) %
+		    (so.blocks_out - pso.blocks_out) %
+		    (so.block_errors - pso.block_errors)));
+      std::string otimes = boost::str(boost::format("%3d %3d %3d") % 
+				      static_cast<uint32_t>(std::round(so.encode_time)) %
+				      static_cast<uint32_t>(std::round(so.send_time)) %
+				      static_cast<uint32_t>(std::round(so.pkt_time)));
+      LOG_INFO << boost::format
+	("%-6s %4.2f s %4d %4d   %-14s %3d %5.2f %5.2f  %14s  %3d   %4d") %
+	stats_other.name() %
+	std::round(log_dur) %
+	(so.sequences - pso.sequences) %
+	(so.sequence_errors - pso.sequence_errors) %
+	oblks %
+	(so.inject_errors - pso.inject_errors) %
+	mbps(so.bytes_out, pso.bytes_out, log_dur) %
+	mbps(so.bytes_in, pso.bytes_in, log_dur) %
+	otimes %
+	static_cast<uint32_t>(std::round(so.latency)) %
+	static_cast<int16_t>(std::round(so.rssi));
       pso = so;
       last_log = t;
     }
