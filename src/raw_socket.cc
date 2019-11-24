@@ -410,7 +410,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
     if ((cur - start) > timeout) {
       return false;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
   if (retval < 0) {
     LOG_ERROR << "Error receiving from the raw data socket.";
