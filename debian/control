@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Brian Webb <webbbn@gmail.com>
 Build-Depends: libboost-all-dev, libpcap-dev, python3-pyudev, libpcap0.8-dev, python3-pip, python3-setuptools, python3-wheel, cmake, build-essential, git
 Homepage: https://github.com/webbbn/wifibroadcast_bridge
+Standards-Version: 3.9.8
 
 Package: wifibroadcast-bridge
 Architecture: any
