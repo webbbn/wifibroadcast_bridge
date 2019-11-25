@@ -1,0 +1,12 @@
+Source: wifibroadcast-bridge
+Section: devel
+Priority: optional
+Maintainer: Brian Webb <webbbn@gmail.com>
+Build-Depends: libboost-all-dev, libpcap-dev, python3-pyudev, libpcap0.8-dev, python3-pip, python3-setuptools, python3-wheel, cmake, build-essential, git
+Homepage: https://github.com/webbbn/wifibroadcast_bridge
+
+Package: wifibroadcast-bridge
+Architecture: any
+Depends: 
+Description: A UDP bridge over a wifibroadcast link
+  Supports a high-bandwidth forward error corrected link using standard wifi radios for transmission of HD video and other real-time data. Based on code an ideas from the EZ-WifiBroadcast, OpenHD, and SVPCOM Wifibroadcast projects.
