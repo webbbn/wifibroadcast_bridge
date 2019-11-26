@@ -1,4 +1,4 @@
-name: CI
+name: arm7
 
 on: [push]
 
@@ -14,7 +14,7 @@ jobs:
     - name: install-build-deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y qemu-arm-static cocker-ce-cli
+        sudo apt-get install -y qemu-arm-static docker-ce-cli
     - name: cross-compile
       run: docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm -ti raspbian/stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
     - name: Upload artifact
