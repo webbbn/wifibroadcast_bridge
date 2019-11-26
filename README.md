@@ -43,6 +43,16 @@ sudo make install
 cpack
 ~~~
 
+## Intall from Lauchpad PPA
+
+It's possible to install the latest version using apt-get from a PPA. The following commands will add the PPA to your list of repositories and install the package:
+
+~~~
+sudo add-apt-repository ppa:webbbn/ppa
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 5C69612679453DE1
+sudo apt-get install wifibroadcast-bridge
+~~~
+
 ## Configuration
 
 **Note:** The only parameter that should need to be different between the ground and air side is the mode, which should be ground on one side and air on the other.
@@ -83,3 +93,36 @@ The remainder of the sections define distinct, unidirection links that connect a
 
 The direction parameter determines which side will open the receive port, and which will send packets received over the link. Up implies that the ground side will open the receive port and the air side will send. Down implies the opposite.
 
+## Starting and enabling the services
+
+This package adds two systemd services that can be started, stopped, and enabled at boot time.
+
+#### Starting the services
+
+~~~
+sudo systemctl start wifi_config
+sudo systemctl start wfb_bridge
+~~~
+
+#### Stopping the services
+
+~~~
+sudo systemctl stop wifi_config
+sudo systemctl stop wfb_bridge
+~~~
+
+#### Enabling startup at boot
+
+~~~
+sudo systemctl enable wifi_config
+sudo systemctl enable wfb_bridge
+~~~
+
+#### Restarting the services
+
+~~~
+sudo systemctl restart wifi_config
+sudo systemctl restart wfb_bridge
+~~~
+
+**Note:** Once the services have been configured they should generally not have to be restarted on any hardware changes, but there are some instances where wfb_bridge will not reenable after removing and inserting a wifi adapter. This will require restarting the wfb_bridge process.
