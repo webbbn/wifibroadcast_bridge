@@ -1,0 +1,24 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: update-submodules
+      run: git submodule update --init
+    - name: install-build-deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qemu-arm-static cocker-ce-cli
+    - name: cross-compile
+      run: docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm -ti raspbian/stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: wifibroadcast-0.1.0-Linux.deb
+        path: build/*.deb
