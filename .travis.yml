@@ -16,3 +16,12 @@ before_script:
   - cmake ..
 
 script: make && cpack
+
+deploy:
+  provider: releases
+  api_key: "6a77e41a0a1834e8bf4fde7b15326c9a99189fb7"
+  file_glob: true
+  file: "build/*.deb"
+  skip_cleanup: true
+  on:
+    tags: true
