@@ -1,8 +1,13 @@
 language: cpp
 
+arch:
+  - amd64
+  - arm64
+  - armf
+  - armv7
+
 compiler:
   - gcc
-  - clang
 
 before_script:
   - sudo apt-get install -y libboost-all-dev libpcap-dev

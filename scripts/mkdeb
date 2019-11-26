@@ -9,5 +9,3 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX=/ ..
 make
 cpack
-mv *.deb ..
-rm -rf build

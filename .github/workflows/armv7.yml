@@ -1,4 +1,4 @@
-name: arm7
+name: armv7
 
 on: [push]
 
