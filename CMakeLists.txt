@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
+# Default the CMAKE_INSTALL_PREFIX
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX "/" CACHE PATH "Change the default installation director (default=/)" FORCE)
+ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+
 # Generate version information
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cc ${CMAKE_CURRENT_BINARY_DIR}/_version.cc
@@ -18,17 +23,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -DNDEBUG -DBOOST_LOG_DYN_
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Add the usr directory to most of the paths if the installcation directory is /
-if (${CMAKE_INSTALL_PREFIX} STREQUAL "/")
-  set(BinDir "usr/bin")
-  set(LibDir "usr/lib")
-  set(IncludeDir "usr/include")
-  set(PythonDistDir "dist-packages")
-else ()
-  set(BinDir "bin")
-  set(LibDir "lib")
-  set(IncludeDir "include")
-  set(PythonDistDir "site-packages")
-endif ()
+set(BinDir "usr/bin")
+set(LibDir "usr/lib")
+set(IncludeDir "usr/include")
+set(PythonDistDir "dist-packages")
 
 # Find the boost libraries
 find_package(Boost REQUIRED COMPONENTS
