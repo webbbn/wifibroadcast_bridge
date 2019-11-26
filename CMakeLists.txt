@@ -57,7 +57,7 @@ endif ()
 set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 
 # Add the radiotap source
-include_directories(modules/radiotap)
+include_directories(src/radiotap)
 
 # Create the library
 add_library(wifibroadcast
@@ -66,7 +66,7 @@ add_library(wifibroadcast
   src/fec.c
   src/fec.cc
   src/logging.cc
-  modules/radiotap/radiotap.c)
+  src/radiotap/radiotap.c)
 target_link_libraries(wifibroadcast ${Boost_LIBRARIES} ${PCAP_LIBRARY})
 install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
 

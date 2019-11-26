@@ -7,10 +7,6 @@ Based on code and ideas from the [OpenHD](https://github.com/HD-Fpv/Open.HD "Ope
 
 ## Installing from source
 
-### Checkout submodules
-
-git submodule update --init
-
 ### Installing dependencies
 
 ~~~
