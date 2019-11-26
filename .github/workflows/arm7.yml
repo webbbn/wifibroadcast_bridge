@@ -14,9 +14,9 @@ jobs:
     - name: install-build-deps
       run: |
         sudo apt-get update
-	sudo apt-get remove -y docker docker-engine docker.io
+        sudo apt-get remove -y docker docker-engine docker.io
         sudo apt-get install -y qemu-user-static docker.io
-	sudo systemctl start docker
+        sudo systemctl start docker
     - name: cross-compile
       run: docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm -ti raspbian/stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
     - name: move-deb
@@ -27,4 +27,4 @@ jobs:
       uses: actions/upload-artifact@v1.0.0
       with:
         name: deb-file
-        path: deb/*.deb
+        path: deb
