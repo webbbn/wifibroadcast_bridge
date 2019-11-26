@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
+# Generate version information
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cc ${CMAKE_CURRENT_BINARY_DIR}/_version.cc
+  COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/cmake/version.cmake
+  )
+
 # Add the local cmake directory to the modules path
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -71,7 +77,8 @@ add_executable(wfb_bridge
   src/udp_send.cc
   src/udp_receive.cc
   src/log_thread.cc
-  src/raw_send_thread.cc)
+  src/raw_send_thread.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
 target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} wifibroadcast pthread)
 
@@ -111,7 +118,8 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con") #required
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con")
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_PACKAGE_VERSION "0.1.0")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY /)
 set(CPACK_SET_DESTDIR true)

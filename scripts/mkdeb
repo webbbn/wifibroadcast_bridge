@@ -1,0 +1,13 @@
+#!/bin/sh
+
+sudo apt-get update
+sudo apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential
+git submodule update --init
+rm -rf build
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=/ ..
+make
+cpack
+mv *.deb ..
+rm -rf build
