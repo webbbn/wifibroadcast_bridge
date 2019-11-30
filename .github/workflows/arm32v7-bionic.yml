@@ -1,4 +1,4 @@
-name: armv7
+name: arm32v7-bionic
 
 on: [push]
 

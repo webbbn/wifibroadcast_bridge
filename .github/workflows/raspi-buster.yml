@@ -1,4 +1,4 @@
-name: armv7
+name: raspi-buster
 
 on: [push]
 
