@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/webbbn/wifibroadcast_bridge.svg?branch=master)](https://travis-ci.com/webbbn/wifibroadcast_bridge)   [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/amd64/badge.svg)  [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/arm32v7-bionic/badge.svg) [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/raspi-buster/badge.svg)
+[![Build Status](https://travis-ci.com/webbbn/wifibroadcast_bridge.svg?branch=master)](https://travis-ci.com/webbbn/wifibroadcast_bridge)   [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/amd64/badge.svg)  [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/amd64-rolling/badge.svg)  [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/arm32v7-bionic/badge.svg) [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/raspi-buster/badge.svg)
 
 # wifibroadcast_bridge
 A UDP bridge over a wifibroadcast link
