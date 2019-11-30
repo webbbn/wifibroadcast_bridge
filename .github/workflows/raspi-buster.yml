@@ -16,7 +16,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y qemu-user-static
     - name: cross-compile
-      run: docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm raspbian/stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
+      run: docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm yummygooey/raspbian-buster /bin/bash -c "cd /mnt; scripts/mkdeb"
     - name: move-deb
       run: |
         mkdir deb
