@@ -4,12 +4,11 @@ txpower = 40
 bitrate = 11
 loglevel = info
 
-[ath9k]
+[ath9k_htc]
 frequency = 2412
-txpower = 40
+txpower = 58
 bitrate = 11
 
 [rtl88xx]
 frequency = 5220
 txpower = 40
-bitrate = 11

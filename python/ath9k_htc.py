@@ -3,21 +3,21 @@ import os
 import logging
 import subprocess
 
-class rtl88xxau(object):
-    """Configure the rtl8812au wifi adapter"""
-    conf_file = "/etc/modprobe.d/rtl88au.conf"
+class ath9k_htc(object):
+    """Configure the ath9k_htc wifi adapter"""
+    conf_file = "/etc/modprobe.d/ath9k_hw.conf"
 
     def __init__(self, interface):
         self.interface = interface
 
     def name(self):
-        return "rtl88xx"
+        return "ath9k_htc"
 
     def config_power(self, txpower):
         """Set the power level for this card"""
 
         # Is it already set?
-        p = subprocess.Popen(['grep', 'rtw_tx_pwr_idx_override=' + str(txpower), self.conf_file], stdout=subprocess.PIPE)
+        p = subprocess.Popen(['grep', 'txpower=' + str(txpower), self.conf_file], stdout=subprocess.PIPE)
         out, err = p.communicate()
         if out.decode('utf-8') != '':
             logging.debug("Not changing power level configuration")
@@ -25,13 +25,13 @@ class rtl88xxau(object):
 
         # Unload the module
         try:
-            os.system("rmmod 88XXau")
+            os.system("rmmod ath9k_htc")
         except:
             pass
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i -E 's/rtw_tx_pwr_idx_override=[^ ]+/rtw_tx_pwr_idx_override=%s/g' %s" % (txpower, self.conf_file))
+            os.system("sed -i -E 's/txpower=[^ ]+/txpower=%s/g' %s" % (txpower, self.conf_file))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)
@@ -39,7 +39,7 @@ class rtl88xxau(object):
 
         # Reload the module
         try:
-            os.system("modprobe 88XXau")
+            os.system("modprobe ath9k_htc")
         except:
             pass
 
@@ -53,8 +53,6 @@ class rtl88xxau(object):
             return False
 
         # Try to bring up the interface
-        # The rtl8812au v5.6.4.1 driver appears to need to be brought up before configuration
-        # Unfortunately I haven't been able to get that version working yet...
         try:
             os.system("ifconfig " + interface + " up")
         except Exception as e:
@@ -62,9 +60,20 @@ class rtl88xxau(object):
             logging.error(e)
             return False
 
-        # Bring this card is down
+        # Configure the bitrate for this card
+        if bitrate != 0:
+            try:
+                logging.debug("Setting the bitrate on interface " + interface + " to " + str(bitrate))
+                if os.system("iw dev " + interface + " set bitrates legacy-2.4 " + str(bitrate)) != 0:
+                    logging.error("Error setting the bitrate for: " + interface)
+                    return None
+            except:
+                logging.error("Error setting the bitrate for: " + interface)
+                return None
+
+        # Bring the card down
         try:
-            os.system("ip link set " + interface + " down")
+            os.system("ifconfig " + interface + " down")
         except Exception as e:
             logging.error("Error bringing the interface down: " + interface)
             logging.error(e)
@@ -72,14 +81,14 @@ class rtl88xxau(object):
 
         # Configure the card in monitor mode
         try:
-            os.system("iw dev " + interface + " set type monitor")
+            os.system("iw dev " + interface + " set monitor none")
         except:
             logging.error(interface + " does not support monitor mode")
             return None
 
-        # Bring the interface up
+        # Try to bring up the interface
         try:
-            os.system("ip link set " + interface + " up")
+            os.system("ifconfig " + interface + " up")
         except Exception as e:
             logging.error("Error bringing the interface up: " + interface)
             logging.error(e)

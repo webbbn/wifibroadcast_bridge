@@ -158,9 +158,9 @@ class Network(object):
             return None
 
         # Configure this card
-        logging.info("Configuring %s to %d and txpower=%d" %
-                     (interface, frequency, txpower))
-        driver.configure(interface, frequency, txpower)
+        logging.info("Configuring %s to %d and txpower=%d, bitrate=%f" %
+                     (interface, frequency, txpower, bitrate))
+        driver.configure(interface, frequency, txpower, bitrate)
         logging.info("Configured: %s" % (interface))
 
         # Add this to the list of interfaces
