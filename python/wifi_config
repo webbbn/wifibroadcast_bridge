@@ -65,9 +65,8 @@ class Network(object):
             print("Invalid log level: %s - setting to info" % (args.loglevel))
             log_level = logging.INFO
         logger = logging.getLogger('wifi_config')
-        logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
-        #logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S", \
-                            #handlers = [logging.handlers.SysLogHandler(address = "/dev/log")])
+        logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S", \
+                            handlers = [logging.StreamHandler(), logging.handlers.SysLogHandler(address = "/dev/log")])
 
         # Configure the reload signal handler
         signal.signal(signal.SIGHUP, handler)
@@ -146,9 +145,9 @@ class Network(object):
         txpower = self.m_config[driver.name()].getint('txpower', 0)
         if txpower == 0:
             txpower = self.m_config['DEFAULT'].getint('txpower', 0)
-        bitrate = self.m_config[driver.name()].getint('bitrate', 0)
+        bitrate = self.m_config[driver.name()].getfloat('bitrate', 0)
         if bitrate == 0:
-            bitrate = self.m_config['DEFAULT'].getint('bitrate', 0)
+            bitrate = self.m_config['DEFAULT'].getfloat('bitrate', 0)
 
         # Get the card for this interface
         try:
