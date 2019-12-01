@@ -104,6 +104,9 @@ install(FILES conf/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configurat
 install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
 install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
 
+# Add rules to install the NetworkManager wifi ignore list
+install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)
+
 # Install the include files
 install(FILES
   include/fec.h
