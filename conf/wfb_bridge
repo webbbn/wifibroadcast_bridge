@@ -123,5 +123,5 @@ datarate = 0
 [packed_status_down]
 name = UDP port to send packed status messages to
 direction = down
-outport = 5003
+outport = 5154
 outhost = 127.0.0.1

@@ -11,5 +11,5 @@ bitrate = 11
 
 [rtl88xx]
 frequency = 5220
-txpower = 50
+txpower = 40
 bitrate = 11

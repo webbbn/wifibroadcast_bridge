@@ -39,11 +39,21 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
   transfer_stats_t ps = stats.get_stats();
   transfer_stats_t pso = stats_other.get_stats();
   transfer_stats_t pps = stats.get_stats();
+  float rssi = 0;
+  float orssi = 0;
+  float krate = 0;
   double last_stat = cur_time();
   double last_log = cur_time();
+  double last_status = cur_time();
   while (true) {
     std::this_thread::sleep_for(std::chrono::milliseconds(loop_period));
     double t = cur_time();
+    transfer_stats_t s = stats.get_stats();
+    transfer_stats_t os = stats_other.get_stats();
+    double loop_time = t - last_status;
+    rssi = rssi * 0.9 + 0.1 * s.rssi;
+    orssi = orssi * 0.9 + 0.1 * os.rssi;
+    krate = krate * 0.9 + 0.1 * kbps(s.bytes_in, pps.bytes_in, loop_time);
 
     // Send status if it's time
     double stat_dur = t - last_stat;
@@ -62,15 +72,13 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 
       // Create the packed status message and send it.
       if (packed_udp_out) {
-	transfer_stats_t s = stats.get_stats();
-	transfer_stats_t os = stats_other.get_stats();
 	wifibroadcast_rx_status_forward_t rxs;
 	rxs.damaged_block_cnt = s.block_errors;
 	rxs.lost_packet_cnt = s.sequence_errors;
 	rxs.skipped_packet_cnt = 0;
 	rxs.injection_fail_cnt = os.inject_errors;
 	rxs.received_packet_cnt = s.blocks_in;
-	rxs.kbitrate = kbps(s.bytes_in, pps.bytes_in, stat_dur);
+	rxs.kbitrate = krate;
 	rxs.kbitrate_measured = 0;
 	rxs.kbitrate_set = 0;
 	rxs.lost_packet_cnt_telemetry_up = os.block_errors;
@@ -78,8 +86,8 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.lost_packet_cnt_msp_up = 0;
 	rxs.lost_packet_cnt_msp_down = 0;
 	rxs.lost_packet_cnt_rc = 0;
-	rxs.current_signal_joystick_uplink = os.rssi;
-	rxs.current_signal_telemetry_uplink = os.rssi;
+	rxs.current_signal_joystick_uplink = orssi;
+	rxs.current_signal_telemetry_uplink = orssi;
 	rxs.joystick_connected = 0;
 	rxs.HomeLat = 0;
 	rxs.HomeLon = 0;
@@ -89,9 +97,9 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.temp_air = 0;
 	rxs.wifi_adapter_cnt = 1;
 	rxs.adapter[0].received_packet_cnt = s.blocks_in;
-	rxs.adapter[0].current_signal_dbm = s.rssi;
+	rxs.adapter[0].current_signal_dbm = rssi;
 	rxs.adapter[0].type = 1;
-	rxs.adapter[0].signal_good = (s.rssi > -100);
+	rxs.adapter[0].signal_good = (rssi > -100);
 
 	sendto(send_sock, reinterpret_cast<uint8_t*>(&rxs), sizeof(rxs), 0,
 	       (struct sockaddr *)&(packed_udp_out->s), sizeof(struct sockaddr_in));
@@ -104,7 +112,6 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
     // Post a log message if it's time
     double log_dur = t - last_log;
     if (log_dur >= syslog_period) {
-      transfer_stats_t s = stats.get_stats();
       std::string blks = is_ground ?
 	(boost::str(boost::format("%4d %4d %4d") % 
 		    (s.blocks_in - ps.blocks_in) %
@@ -137,36 +144,36 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rate %
 	times %
 	static_cast<uint32_t>(std::round(s.latency)) %
-	static_cast<int16_t>(std::round(s.rssi));
+	static_cast<int16_t>(std::round(rssi));
       ps = s;
-      transfer_stats_t so = stats_other.get_stats();
       std::string oblks = is_ground ?
 	(boost::str(boost::format("%4d %4d %4d") % 
-		    (so.blocks_out - pso.blocks_out) %
-		    (so.blocks_in - pso.blocks_in) %
-		    (so.block_errors - pso.block_errors))) :
+		    (os.blocks_out - pso.blocks_out) %
+		    (os.blocks_in - pso.blocks_in) %
+		    (os.block_errors - pso.block_errors))) :
 	(boost::str(boost::format("%4d %4d %4d") % 
-		    (so.blocks_in - pso.blocks_in) %
-		    (so.blocks_out - pso.blocks_out) %
-		    (so.block_errors - pso.block_errors)));
+		    (os.blocks_in - pso.blocks_in) %
+		    (os.blocks_out - pso.blocks_out) %
+		    (os.block_errors - pso.block_errors)));
       std::string otimes = boost::str(boost::format("%3d %3d %3d") % 
-				      static_cast<uint32_t>(std::round(so.encode_time)) %
-				      static_cast<uint32_t>(std::round(so.send_time)) %
-				      static_cast<uint32_t>(std::round(so.pkt_time)));
+				      static_cast<uint32_t>(std::round(os.encode_time)) %
+				      static_cast<uint32_t>(std::round(os.send_time)) %
+				      static_cast<uint32_t>(std::round(os.pkt_time)));
       LOG_INFO << boost::format
 	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
 	stats_other.name() %
 	std::round(log_dur) %
-	(so.sequences - pso.sequences) %
-	(so.sequence_errors - pso.sequence_errors) %
+	(os.sequences - pso.sequences) %
+	(os.sequence_errors - pso.sequence_errors) %
 	oblks %
-	(so.inject_errors - pso.inject_errors) %
+	(os.inject_errors - pso.inject_errors) %
 	rate %
 	otimes %
-	static_cast<uint32_t>(std::round(so.latency)) %
-	static_cast<int16_t>(std::round(so.rssi));
-      pso = so;
+	static_cast<uint32_t>(std::round(os.latency)) %
+	static_cast<int16_t>(std::round(orssi));
+      pso = os;
       last_log = t;
     }
+    last_status = t;
   }
 }
