@@ -118,17 +118,23 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 				     static_cast<uint32_t>(std::round(s.encode_time)) %
 				     static_cast<uint32_t>(std::round(s.send_time)) %
 				     static_cast<uint32_t>(std::round(s.pkt_time)));
+      std::string rate = is_ground ?
+	(boost::str(boost::format("%5.2f %5.2f") %
+		    mbps(s.bytes_in, ps.bytes_in, log_dur) %
+		    mbps(s.bytes_out, ps.bytes_out, log_dur))) :
+	(boost::str(boost::format("%5.2f %5.2f") %
+		    mbps(s.bytes_out, ps.bytes_out, log_dur) %
+		    mbps(s.bytes_in, ps.bytes_in, log_dur)));
       LOG_INFO << "Name   Interval Seq(r/e)  Blocks(d/u/e)  Inj  Rate(d/u)   Times(e/s/t)Us  LatMs RSSI";
       LOG_INFO << boost::format
-	("%-6s %4.2f s %4d %4d   %-14s %3d %5.2f %5.2f  %14s  %3d   %4d") %
+	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
 	stats.name() %
 	std::round(log_dur) %
 	(s.sequences - ps.sequences) %
 	(s.sequence_errors - ps.sequence_errors) %
 	blks %
 	(s.inject_errors - ps.inject_errors) %
-	mbps(s.bytes_in, ps.bytes_in, log_dur) %
-	mbps(s.bytes_out, ps.bytes_out, log_dur) %
+	rate %
 	times %
 	static_cast<uint32_t>(std::round(s.latency)) %
 	static_cast<int16_t>(std::round(s.rssi));
@@ -148,15 +154,14 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 				      static_cast<uint32_t>(std::round(so.send_time)) %
 				      static_cast<uint32_t>(std::round(so.pkt_time)));
       LOG_INFO << boost::format
-	("%-6s %4.2f s %4d %4d   %-14s %3d %5.2f %5.2f  %14s  %3d   %4d") %
+	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
 	stats_other.name() %
 	std::round(log_dur) %
 	(so.sequences - pso.sequences) %
 	(so.sequence_errors - pso.sequence_errors) %
 	oblks %
 	(so.inject_errors - pso.inject_errors) %
-	mbps(so.bytes_out, pso.bytes_out, log_dur) %
-	mbps(so.bytes_in, pso.bytes_in, log_dur) %
+	rate %
 	otimes %
 	static_cast<uint32_t>(std::round(so.latency)) %
 	static_cast<int16_t>(std::round(so.rssi));
