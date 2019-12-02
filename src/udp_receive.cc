@@ -124,7 +124,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
       // Get the FEC stats (optional).
       uint16_t blocksize = v.second.get<uint16_t>("blocksize", 1500);
-      uint8_t nblocks = v.second.get<uint8_t>("blocks", 1);
+      uint8_t nblocks = v.second.get<uint8_t>("blocks", 0);
       uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
       bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 

@@ -6,7 +6,7 @@ loglevel = info
 
 [ath9k_htc]
 frequency = 2412
-txpower = 58
+txpower = 50
 bitrate = 11
 
 [rtl88xx]

@@ -251,7 +251,6 @@ bool RawSendSocket::add_device(const std::string &device) {
 
 bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
 			 uint8_t datarate, bool mcs, bool stbc, bool ldpc) {
-  msglen = 1400;
 
   // Construct the radiotap header at the nead of the packet.
   size_t rt_hlen = 0;

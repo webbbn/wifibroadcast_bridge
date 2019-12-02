@@ -175,11 +175,6 @@ int main(int argc, const char** argv) {
       // Get the link type
       std::string type = v.second.get<std::string>("type", "data");
 
-      // Get the FEC stats (optional).
-      uint16_t blocksize = v.second.get<uint16_t>("blocksize", 1500);
-      uint8_t nblocks = v.second.get<uint8_t>("blocks", 0);
-      uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
-
       // Create the FEC decoder if requested.
       std::shared_ptr<FECDecoder> dec(new FECDecoder());
       if ((port > 0) && (outport > 0)) {
