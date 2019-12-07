@@ -161,11 +161,11 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 				      static_cast<uint32_t>(std::round(os.pkt_time)));
       std::string orate = is_ground ?
 	(boost::str(boost::format("%5.2f %5.2f") %
-		    mbps(os.bytes_in, pso.bytes_in, log_dur) %
-		    mbps(os.bytes_out, pso.bytes_out, log_dur))) :
-	(boost::str(boost::format("%5.2f %5.2f") %
 		    mbps(os.bytes_out, pso.bytes_out, log_dur) %
-		    mbps(os.bytes_in, pso.bytes_in, log_dur)));
+		    mbps(os.bytes_in, pso.bytes_in, log_dur))) :
+	(boost::str(boost::format("%5.2f %5.2f") %
+		    mbps(os.bytes_in, pso.bytes_in, log_dur) %
+		    mbps(os.bytes_out, pso.bytes_out, log_dur)));
       LOG_INFO << boost::format
 	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
 	stats_other.name() %

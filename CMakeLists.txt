@@ -95,11 +95,6 @@ install(DIRECTORY python/ DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT applicati
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
 install(FILES conf/wifi_config DESTINATION etc/default COMPONENT configuration)
 
-# Add the module configuration files
-install(FILES conf/rtl88au.conf DESTINATION etc/modprobe.d COMPONENT configuration)
-install(FILES conf/ath9k_htc.conf DESTINATION etc/modprobe.d COMPONENT configuration)
-install(FILES conf/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configuration)
-
 # Add rules to install the services files
 install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
 install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
