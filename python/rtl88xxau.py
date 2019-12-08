@@ -5,7 +5,7 @@ import subprocess
 
 class rtl88xxau(object):
     """Configure the rtl8812au wifi adapter"""
-    conf_file = "/etc/modprobe.d/rtl88au.conf"
+    conf_file = "/lib/modprobe.d/rtl88au.conf"
 
     def __init__(self, interface):
         self.interface = interface

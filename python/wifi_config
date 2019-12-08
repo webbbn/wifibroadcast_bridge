@@ -35,6 +35,7 @@ udev_context = udev.Context()
 def handler(signum, frame):
     """Re-read the configuration file on a SIGHUP signal"""
     if signum == signal.SIGHUP:
+        logging.info("Received a SIGHUP - reloading configuration")
         net.reload_config(config_filename)
 
 class Network(object):
