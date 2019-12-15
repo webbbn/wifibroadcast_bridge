@@ -37,6 +37,12 @@ jobs:
         mkdir deb/stretch-armhf
         sudo mv build/*.deb deb/stretch-armhf
         sudo rm -rf build
+    - name: compile-bionic-arm64
+      run: |
+        docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
+        mkdir deb/bionic-arm64
+        sudo mv build/*.deb deb/bionic-arm64
+        sudo rm -rf build
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
