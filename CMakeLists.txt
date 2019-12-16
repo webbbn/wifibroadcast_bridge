@@ -110,7 +110,7 @@ install(FILES
   DESTINATION ${IncludeDir}/wifibroadcast COMPONENT development)
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-options-dev,libboost-system-dev,libboost-filesystem-dev,libboost-log-dev")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")
