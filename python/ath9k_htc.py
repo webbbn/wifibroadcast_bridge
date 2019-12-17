@@ -5,7 +5,7 @@ import subprocess
 
 class ath9k_htc(object):
     """Configure the ath9k_htc wifi adapter"""
-    conf_file = "/etc/modprobe.d/ath9k_hw.conf"
+    conf_file = "/lib/modprobe.d/ath9k_hw.conf"
 
     def __init__(self, interface):
         self.interface = interface
