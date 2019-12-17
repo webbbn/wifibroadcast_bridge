@@ -39,7 +39,7 @@ jobs:
         sudo rm -rf build
     - name: compile-buster-arm64
       run: |
-        docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm64v8/debian:busterr /bin/bash -c "cd /mnt; scripts/mkdeb"
+        docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
         mkdir deb/stretch-armhf
         sudo mv build/*.deb deb/stretch-armhf
         sudo rm -rf build
