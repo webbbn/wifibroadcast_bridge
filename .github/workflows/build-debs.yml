@@ -40,8 +40,8 @@ jobs:
     - name: compile-buster-arm64
       run: |
         docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-        mkdir deb/stretch-armhf
-        sudo mv build/*.deb deb/stretch-armhf
+        mkdir deb/buster-arm64
+        sudo mv build/*.deb deb/buster-arm64
         sudo rm -rf build
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
