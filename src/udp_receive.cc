@@ -135,8 +135,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       opts.stbc = v.second.get<uint8_t>("stbc", 0) ? true : false;
       opts.ldpc = v.second.get<uint8_t>("ldpc", 0) ? true : false;
 
-      // Allocate the encoder
-      std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize));
+      // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
+      static const uint8_t length_len = 2;
+      std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize + length_len));
 
       // Create the FEC encoder if requested.
       if (type == "data"){
