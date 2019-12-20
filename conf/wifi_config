@@ -9,6 +9,6 @@ frequency = 2412
 txpower = 50
 bitrate = 11
 
-[rtl88xx]
+[rtl88xxau]
 frequency = 5220
 txpower = 40

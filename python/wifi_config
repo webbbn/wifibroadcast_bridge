@@ -18,6 +18,12 @@ class Card(enum.Enum):
     ath9k = 1
     rtl88xx = 2
 
+module_name_mappings = {
+    "rtl88xxau": "rtl88xxau",
+    "88XXau": "rtl88xxau",
+    "ath9k_htc": "ath9k_htc"
+}
+
 # Setup some paths based on the directory that this script was run frum.
 root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -128,25 +134,29 @@ class Network(object):
 
         # Try to load the module for configuring this device type
         # If the module doesn't exist, the card is not supported
+        if driver not in module_name_mappings:
+            logging.debug("Unable to load find name mapping for driver: %s" % (driver))
+            return None
+        module_name = module_name_mappings[driver]
         try:
-            module = __import__('wifibroadcast', globals(), locals(), [driver])
-            submodule = getattr(module, driver)
-            class_ = getattr(submodule, driver)
+            module = __import__('wifibroadcast', globals(), locals(), [module_name])
+            submodule = getattr(module, module_name)
+            class_ = getattr(submodule, module_name)
             driver = class_(interface)
         except Exception as e:
             logging.debug("Unable to load module for driver: %s" % (driver))
             logging.debug(e)
             return None
-        logging.info("Found driver of type: %s" % (driver.name()))
+        logging.info("Found driver of type: %s" % (module_name))
 
         # Retrieve the configuration file
-        frequency = self.m_config[driver.name()].getint('frequency', 0)
+        frequency = self.m_config[module_name].getint('frequency', 0)
         if frequency == 0:
             frequency = self.m_config['DEFAULT'].getint('frequency', 0)
-        txpower = self.m_config[driver.name()].getint('txpower', 0)
+        txpower = self.m_config[module_name].getint('txpower', 0)
         if txpower == 0:
             txpower = self.m_config['DEFAULT'].getint('txpower', 0)
-        bitrate = self.m_config[driver.name()].getfloat('bitrate', 0)
+        bitrate = self.m_config[module_name].getfloat('bitrate', 0)
         if bitrate == 0:
             bitrate = self.m_config['DEFAULT'].getfloat('bitrate', 0)
 
