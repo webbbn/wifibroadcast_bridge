@@ -1,7 +1,9 @@
 #!/bin/sh
 
 apt-get update
+apt-get upgrade -y
 apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential
+ls -l /usr/lib/libboost*.so
 git submodule update --init
 rm -rf build
 mkdir build
