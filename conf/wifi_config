@@ -2,11 +2,12 @@
 frequency = 2412
 txpower = 40
 bitrate = 11
-loglevel = info
+log_level = critical
+syslog_level = info
 
 [ath9k_htc]
 frequency = 2412
-txpower = 50
+txpower = 40
 bitrate = 11
 
 [rtl88xxau]

@@ -31,8 +31,9 @@ class ath9k_htc(object):
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i -E '/txpower=[^ ]+/d' %s" % (txpower, self.conf_file))
-            os.system("echo \" txpower=%s\" >> %s" % (txpower, self.conf_file))
+            os.system("sed -i '/txpower=[^ ]+/d' %s" % (self.conf_file))
+            with open(self.conf_file, "a") as fp:
+                fp.write(" txpower=%s" % (txpower))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)
@@ -45,7 +46,10 @@ class ath9k_htc(object):
             pass
 
         logging.info("Configured %s card with power: %d" % (self.name(), txpower))
-        return True
+
+        # Return False so that we will stop configuration at this point,
+        # assuming that the card will be configured again due to the loading of the module.
+        return False
         
     def configure(self, interface, frequency, txpower, bitrate):
 

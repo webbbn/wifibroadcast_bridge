@@ -14,13 +14,15 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
     // Pull the next packet off the queue
     std::shared_ptr<Message> msg = outqueue.pop();
     bool flush = (msg->msg.size() == 0);
-    bool debug = !flush && (msg->msg.size() < 50);
 
     // FEC encode the packet if requested.
     double loop_start = cur_time();
     auto enc = msg->enc;
     // Flush the encoder if necessary.
     if (flush) {
+      if (!enc) {
+	continue;
+      }
       enc->flush();
     } else {
       double enc_start = cur_time();

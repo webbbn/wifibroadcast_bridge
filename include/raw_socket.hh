@@ -43,7 +43,7 @@ public:
     return (m_sock < 0);
   }
 
-  bool add_device(const std::string &device);
+  bool add_device(const std::string &device, bool silent = true);
 
   // Copy the message into the send bufer and send it.
   bool send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
