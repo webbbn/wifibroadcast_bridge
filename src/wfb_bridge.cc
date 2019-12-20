@@ -196,13 +196,12 @@ int main(int argc, const char** argv) {
 
   // Interfaces can come and go, so we need to loop until an interface comes up
   // and deal with interfaces going down.
-  std::vector<std::string> ifnames;
   while (1) {
     bool terminate = false;
     LOG_DEBUG << "Detecting network interfaces";
 
     // Get a list of the network devices.
-    ifnames.clear();
+    std::vector<std::string> ifnames;
     if (!detect_network_devices(ifnames)) {
       LOG_CRITICAL << "Error reading the network interfaces.";
       return EXIT_FAILURE;
@@ -215,15 +214,17 @@ int main(int argc, const char** argv) {
     for (const auto &ifname : ifnames) {
       LOG_DEBUG << "  " << ifname;
     }
+    // Give things time to settle before start trying to connect
+    sleep(2);
 
     // Open the raw transmit socket
     RawSendSocket raw_send_sock((mode == "ground"));
     // Connect to the raw wifi interfaces.
     bool valid_send_sock = false;
     for (const auto &device : ifnames) {
-      if (raw_send_sock.add_device(device)) {
+      if (raw_send_sock.add_device(device, true)) {
 	valid_send_sock = true;
-	LOG_INFO << "Transmitting on interface: " << device;
+	LOG_DEBUG << "Transmitting on interface: " << device;
 	break;
       }
     }
@@ -250,33 +251,40 @@ int main(int argc, const char** argv) {
 	LOG_INFO << "Receiving on interface: " << device;
 	break;
       } else {
-	LOG_WARNING << "Unable to configure wifi device: " << device;
+	LOG_DEBUG << "Unable to configure wifi device: " << device;
       }
     }
 
     // Create the raw socket receive thread
     auto recv =
       [&raw_recv_sock, &inqueue, &terminate, &trans_stats, &trans_stats_other]() {
+	uint16_t recv_timeout_ms = 2000;
+	uint16_t recv_down_time = 0;
 	while(!terminate) {
 	  std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
 	  if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
 	    inqueue.push(msg);
+	    recv_down_time = 0;
 	  } else {
 	    trans_stats.timeout();
 	    trans_stats_other.timeout();
+	    recv_down_time += 200;
+	  }
+	  if (recv_down_time >= recv_timeout_ms) {
+	    terminate = true;
 	  }
 	}
-	LOG_INFO << "Raw socket receive thread exiting";
+	LOG_DEBUG << "Raw socket receive thread exiting";
     };
     std::thread recv_thread(recv);
 
     // Join on the send and receive threads, which should terminate if/when the device is removed.
     recv_thread.join();
-    LOG_WARNING << "Raw receive send thread has terminated.";
+    LOG_DEBUG << "Raw receive send thread has terminated.";
     // Force the send thread to terminate.
     outqueue.push(std::shared_ptr<Message>(new Message()));
     send_thread.join();
-    LOG_WARNING << "Raw socket send thread has terminated.";
+    LOG_DEBUG << "Raw socket send thread has terminated.";
   }
 
   return EXIT_SUCCESS;

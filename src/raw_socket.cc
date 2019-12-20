@@ -180,11 +180,13 @@ RawSendSocket::RawSendSocket(bool ground, uint32_t send_buffer_size, uint32_t ma
   m_send_buf.resize(max_header + sizeof(ieee_header_data) + max_packet);
 }
 
-bool RawSendSocket::add_device(const std::string &device) {
+bool RawSendSocket::add_device(const std::string &device, bool silent) {
 
   m_sock = socket(AF_PACKET, SOCK_RAW, 0);
   if (m_sock == -1) {
-    LOG_ERROR << "Socket open failed.";
+    if (!silent) {
+      LOG_ERROR << "Socket open failed.";
+    }
     return false;
   }
 
@@ -206,7 +208,9 @@ bool RawSendSocket::add_device(const std::string &device) {
   }
 
   if (ioctl(m_sock, SIOCGIFINDEX, &ifr) < 0) {
-    LOG_ERROR << "Error: ioctl(SIOCGIFINDEX) failed.";
+    if (!silent) {
+      LOG_ERROR << "Error: ioctl(SIOCGIFINDEX) failed.";
+    }
     close(m_sock);
     m_sock = -1;
     return false;
@@ -214,7 +218,9 @@ bool RawSendSocket::add_device(const std::string &device) {
   ll_addr.sll_ifindex = ifr.ifr_ifindex;
 
   if (ioctl(m_sock, SIOCGIFHWADDR, &ifr) < 0) {
-    LOG_ERROR << "Error: ioctl(SIOCGIFHWADDR) failed.";
+    if (!silent) {
+      LOG_ERROR << "Error: ioctl(SIOCGIFHWADDR) failed.";
+    }
     close(m_sock);
     m_sock = -1;
     return false;
@@ -222,14 +228,18 @@ bool RawSendSocket::add_device(const std::string &device) {
   memcpy(ll_addr.sll_addr, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
   if (bind(m_sock, (struct sockaddr *)&ll_addr, sizeof(ll_addr)) == -1) {
-    LOG_ERROR << "Error: bind failed.";
+    if (!silent) {
+      LOG_ERROR << "Error: bind failed.";
+    }
     close(m_sock);
     m_sock = -1;
     return false;
   }
 
   if (m_sock == -1) {
-    LOG_ERROR << "Error: Cannot open socket: Must be root with an 802.11 card with RFMON enabled";
+    if (!silent) {
+      LOG_ERROR << "Error: Cannot open socket: Must be root with an 802.11 card with RFMON enabled";
+    }
     return false;
   }
 
@@ -237,12 +247,16 @@ bool RawSendSocket::add_device(const std::string &device) {
   timeout.tv_sec = 0;
   timeout.tv_usec = 8000;
   if (setsockopt(m_sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
-    LOG_ERROR << "setsockopt SO_SNDTIMEO";
+    if (!silent) {
+      LOG_ERROR << "setsockopt SO_SNDTIMEO";
+    }
     return false;
   }
 
   if (setsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &m_buffer_size, sizeof(m_buffer_size)) < 0) {
-    LOG_ERROR << "setsockopt SO_SNDBUF";
+    if (!silent) {
+      LOG_ERROR << "setsockopt SO_SNDBUF";
+    }
     return false;
   }
 
@@ -372,7 +386,7 @@ bool RawReceiveSocket::add_device(const std::string &device) {
 
   int nLinkEncap = pcap_datalink(m_ppcap);
   if (nLinkEncap != DLT_IEEE802_11_RADIO) {
-    LOG_ERROR << "Unknown encapsulation on " + device +
+    LOG_DEBUG << "Unknown encapsulation on " + device +
       "! check if monitor mode is supported and enabled";
     return false;
   }
