@@ -5,7 +5,7 @@ import subprocess
 
 class ath9k_htc(object):
     """Configure the ath9k_htc wifi adapter"""
-    conf_file = "/lib/modprobe.d/ath9k_hw.conf"
+    conf_file = "/etc/modprobe.d/ath9k_hw.conf"
 
     def __init__(self, interface):
         self.interface = interface
@@ -31,7 +31,8 @@ class ath9k_htc(object):
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i -E 's/txpower=[^ ]+/txpower=%s/g' %s" % (txpower, self.conf_file))
+            os.system("sed -i -E '/txpower=[^ ]+/d' %s" % (txpower, self.conf_file))
+            os.system("echo \" txpower=%s\" >> %s" % (txpower, self.conf_file))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)

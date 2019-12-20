@@ -102,6 +102,10 @@ install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPON
 # Add rules to install the NetworkManager wifi ignore list
 install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)
 
+# Add rules to install the wifi module configuration files
+install(FILES etc/modprobe.d/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES lib/modprobe.d/rtl88au.conf DESTINATION lib/modprobe.d COMPONENT configuration)
+
 # Install the include files
 install(FILES
   include/fec.h
@@ -110,7 +114,7 @@ install(FILES
   DESTINATION ${IncludeDir}/wifibroadcast COMPONENT development)
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-options-dev,libboost-system-dev,libboost-filesystem-dev,libboost-log-dev")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-options-dev,libboost-system-dev,libboost-filesystem-dev,libboost-log-dev,firmware-ath9k-htc")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")
