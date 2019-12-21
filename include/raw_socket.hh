@@ -63,6 +63,7 @@ private:
 
 class RawReceiveSocket {
 public:
+  
   RawReceiveSocket(bool ground, uint32_t max_packet = 65535);
 
   bool add_device(const std::string &device);

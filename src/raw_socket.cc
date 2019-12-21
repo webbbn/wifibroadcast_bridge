@@ -422,7 +422,9 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
   while((retval = pcap_next_ex(m_ppcap, &pcap_packet_header, &pcap_packet_data)) == 0) {
     auto cur = std::chrono::high_resolution_clock::now();
     if ((cur - start) > timeout) {
-      return false;
+      // An empty message with a return of true implies timeout
+      msg.data.clear();
+      return true;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
