@@ -258,21 +258,21 @@ int main(int argc, const char** argv) {
     // Create the raw socket receive thread
     auto recv =
       [&raw_recv_sock, &inqueue, &terminate, &trans_stats, &trans_stats_other]() {
-	uint16_t recv_timeout_ms = 2000;
-	uint16_t recv_down_time = 0;
+	//uint16_t recv_timeout_ms = 2000;
+	//uint16_t recv_down_time = 0;
 	while(!terminate) {
 	  std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
 	  if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
 	    inqueue.push(msg);
-	    recv_down_time = 0;
+	    //recv_down_time = 0;
 	  } else {
 	    trans_stats.timeout();
 	    trans_stats_other.timeout();
-	    recv_down_time += 200;
+	    //recv_down_time += 200;
 	  }
-	  if (recv_down_time >= recv_timeout_ms) {
-	    terminate = true;
-	  }
+	  //if (recv_down_time >= recv_timeout_ms) {
+	  //terminate = true;
+	  //}
 	}
 	LOG_DEBUG << "Raw socket receive thread exiting";
     };
