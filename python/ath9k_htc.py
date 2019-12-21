@@ -1,5 +1,6 @@
 
 import os
+import re
 import logging
 import subprocess
 
@@ -31,9 +32,15 @@ class ath9k_htc(object):
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i '/txpower=[^ ]+/d' %s" % (self.conf_file))
-            with open(self.conf_file, "a") as fp:
-                fp.write(" txpower=%s" % (txpower))
+            with open(self.conf_file, "r+") as fp:
+                line = fp.read().splitlines()[0]
+                # Don't just replace, since the string might not be in the line
+                line = re.sub(r' txpower=[^ ]+', '', line)
+                # Clear the file
+                fp.truncate(0)
+                fp.seek(0)
+                # Write out the updated line
+                fp.write("%s txpower=%s \n" % (line.strip(), txpower))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)
