@@ -1,4 +1,5 @@
 
+import re
 import os
 import logging
 import subprocess
@@ -31,9 +32,15 @@ class rtl88xxau(object):
 
         # Change the power in the configuration file
         try:
-            os.system("sed -i '/rtw_tx_pwr_idx_override=[^ ]+/d' %s" % (self.conf_file))
-            with open(self.conf_file, "a") as fp:
-                fp.write(" rtw_tx_pwr_idx_override=%s" % (txpower))
+            with open(self.conf_file, "r+") as fp:
+                line = fp.read().splitlines()[0]
+                # Don't just replace, since the string might not be in the line
+                line = re.sub(r' rtw_tx_pwr_idx_override=[^ ]+', '', line)
+                # Clear the file
+                fp.truncate(0)
+                fp.seek(0)
+                # Write out the updated line
+                fp.write("%s rtw_tx_pwr_idx_override=%s \n" % (line.strip(), txpower))
         except Exception as e:
             logging.error("Error setting txpower on: " + self.interface)
             logging.error(e)
