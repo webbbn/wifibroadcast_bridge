@@ -53,7 +53,7 @@
 # 31        260   64-QAM
 
 [global]
-mode = air
+mode = ground
 loglevel = critical
 sysloglevel = info
 sysloghost = localhost
