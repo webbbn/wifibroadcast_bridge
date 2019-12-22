@@ -125,7 +125,6 @@ class Network(object):
         """Configure the given card in monitor mode"""
 
         # See if this device has been unplugged
-        print("aaa: ", interface, self.m_devices)
         if interface in self.m_devices:
             try:
                 card = pyw.getcard(device_name)
