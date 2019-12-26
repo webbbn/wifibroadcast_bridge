@@ -19,6 +19,7 @@ class Card(enum.Enum):
     rtl88xx = 2
 
 module_name_mappings = {
+    "rtl8812au": "rtl88xxau",
     "rtl88xxau": "rtl88xxau",
     "88XXau": "rtl88xxau",
     "ath9k_htc": "ath9k_htc"
@@ -59,7 +60,10 @@ class Network(object):
             'txpower': '40',
             'bitrate': '11',
             'loglevel': 'debug',
-            'sysloglevel': 'debug'
+            'syslog_level': 'debug',
+            'mcs': '0',
+            'stbc': '0',
+            'ldpc': '0'
         }
         try:
             self.m_config.read(filename)
@@ -81,8 +85,8 @@ class Network(object):
         stream_handler.setLevel(log_level)
         syslog_handler = logging.handlers.SysLogHandler(address = "/dev/log")
         syslog_handler.setLevel(syslog_level)
-        logging.basicConfig(level=max(log_level, syslog_level), format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S", \
-                            handlers = [stream_handler, syslog_handler])
+        logging.basicConfig(level=min(log_level, syslog_level), format="%(asctime)s %(levelname)s: %(message)s",
+                            datefmt="%H:%M:%S", handlers = [stream_handler, syslog_handler])
 
         # Configure the reload signal handler
         signal.signal(signal.SIGHUP, handler)
@@ -95,6 +99,7 @@ class Network(object):
 
         # Re-configure all the interfaces
         for iface in net.monitor_interfaces():
+            logging.info("Reconfiguring interface: " + iface)
             net.configure_interface(iface)
 
     def supports_monitor(self, device_name):
@@ -133,19 +138,16 @@ class Network(object):
                 self.m_devices.remove(interface)
                 return None
 
-        # Let the dust settle before going crazy and configuring.
-        time.sleep(2)
-
         # Determine the type of card for this interface
         try:
             driver = pywhw.ifcard(interface)[0]
-            logging.debug("Found wifi card with driver: %s" % (driver))
+            logging.info("Found wifi card with driver: %s" % (driver))
         except Exception as e:
             logging.error("Error creating the interface for: %s" % (driver))
             return None
 
 
-        # Try to load the module for configuring this device type
+        # Try to load the python module for configuring this device type
         # If the module doesn't exist, the card is not supported
         if driver not in module_name_mappings:
             logging.debug("Unable to load find name mapping for driver: %s" % (driver))
@@ -172,6 +174,15 @@ class Network(object):
         bitrate = self.m_config[module_name].getfloat('bitrate', 0)
         if bitrate == 0:
             bitrate = self.m_config['DEFAULT'].getfloat('bitrate', 0)
+        mcs  = self.m_config[module_name].getfloat('mcs', 0)
+        if mcs == 0:
+            mcs = self.m_config['DEFAULT'].getfloat('mcs', 0)
+        stbc  = self.m_config[module_name].getfloat('stbc', 0)
+        if stbc == 0:
+            stbc = self.m_config['DEFAULT'].getfloat('stbc', 0)
+        ldpc  = self.m_config[module_name].getfloat('ldpc', 0)
+        if ldpc == 0:
+            ldpc = self.m_config['DEFAULT'].getfloat('ldpc', 0)
 
         # Get the card for this interface
         try:
@@ -183,12 +194,15 @@ class Network(object):
         # Configure this card
         logging.info("Configuring %s to %d and txpower=%d, bitrate=%f" %
                      (interface, frequency, txpower, bitrate))
-        add = driver.configure(interface, frequency, txpower, bitrate)
+        add = driver.configure(interface, frequency, txpower, bitrate, mcs, stbc, ldpc)
         logging.info("Configured: %s" % (interface))
 
         # Add this to the list of interfaces
         if add:
             self.m_devices.append(interface)
+
+        # Reload the wfb_bridge process just in case we changed it's configuration
+        os.system("systemctl reload wfb_bridge")
 
         return card
 
