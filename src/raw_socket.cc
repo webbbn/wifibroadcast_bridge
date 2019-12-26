@@ -291,40 +291,22 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 
     // Set the data rate in the header
     switch (datarate) {
-    case 1:
-      head.datarate = 2;
-      break;
-    case 2:
-      head.datarate = 4;
-      break;
-    case 3:
+    case 0:
       head.datarate = 11;
       break;
-    case 4:
+    case 1:
       head.datarate = 22;
       break;
-    case 5:
-      head.datarate = 12;
-      break;
-    case 6:
-      head.datarate = 18;
-      break;
-    case 7:
-      head.datarate = 24;
-      break;
-    case 8:
+    case 2:
       head.datarate = 36;
       break;
-    case 9:
+    case 3:
       head.datarate = 48;
       break;
-    case 10:
+    case 4:
       head.datarate = 72;
       break;
-    case 11:
-      head.datarate = 96;
-      break;
-    case 12:
+    case 5:
       head.datarate = 108;
       break;
     default:

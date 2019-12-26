@@ -103,8 +103,10 @@ install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPON
 install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)
 
 # Add rules to install the wifi module configuration files
-install(FILES lib/modprobe.d/ath9k_hw.conf DESTINATION lib/modprobe.d COMPONENT configuration)
-install(FILES lib/modprobe.d/rtl88au.conf DESTINATION lib/modprobe.d COMPONENT configuration)
+install(FILES etc/modprobe.d/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES etc/modprobe.d/rtl88au.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES etc/modprobe.d/ath9k_htc.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES lib/firmware/ath9k_htc/htc_9271-1.4.0.fw DESTINATION lib/firmware/ath9k_htc/htc_9271-1.4.0.fw COMPONENT configuration)
 
 # Install the include files
 install(FILES

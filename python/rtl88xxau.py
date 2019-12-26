@@ -3,10 +3,11 @@ import re
 import os
 import logging
 import subprocess
+from configparser import ConfigParser
 
 class rtl88xxau(object):
     """Configure the rtl8812au wifi adapter"""
-    conf_file = "/lib/modprobe.d/rtl8812au.conf"
+    wfb_config_filename = "/etc/default/wfb_bridge"
 
     def __init__(self, interface):
         self.interface = interface
@@ -14,62 +15,16 @@ class rtl88xxau(object):
     def name(self):
         return "rtl88xx"
 
-    def config_power(self, txpower):
-        """Set the power level for this card"""
+    def configure(self, interface, frequency, txpower, bitrate, mcs, stbc, ldpc):
 
-        # Is it already set?
-        p = subprocess.Popen(['grep', 'rtw_tx_pwr_idx_override=' + str(txpower), self.conf_file], stdout=subprocess.PIPE)
-        out, err = p.communicate()
-        if out.decode('utf-8') != '':
-            logging.debug("Not changing power level configuration")
-            return True
-
-        # Unload the module
-        try:
-            os.system("rmmod 88XXau")
-        except:
-            pass
-
-        # Change the power in the configuration file
-        try:
-            with open(self.conf_file, "r+") as fp:
-                line = fp.read().splitlines()[0]
-                # Don't just replace, since the string might not be in the line
-                line = re.sub(r' rtw_tx_pwr_idx_override=[^ ]+', '', line)
-                # Clear the file
-                fp.truncate(0)
-                fp.seek(0)
-                # Write out the updated line
-                fp.write("%s rtw_tx_pwr_idx_override=%s \n" % (line.strip(), txpower))
-        except Exception as e:
-            logging.error("Error setting txpower on: " + self.interface)
-            logging.error(e)
-            return False
-
-        # Reload the module
-        try:
-            os.system("modprobe 88XXau")
-        except:
-            pass
-
-        logging.info("Configured %s card with power: %d" % (self.name(), txpower))
-        return True
-        
-    def configure(self, interface, frequency, txpower, bitrate):
-
-        # Configure the transmit power level (some cards don't support this)
-        if not self.config_power(txpower):
-            return False
-
-        # Try to bring up the interface
-        # The rtl8812au v5.6.4.1 driver appears to need to be brought up before configuration
-        # Unfortunately I haven't been able to get that version working yet...
-        try:
-            os.system("ifconfig " + interface + " up")
-        except Exception as e:
-            logging.error("Error bringing the interface up: " + interface)
-            logging.error(e)
-            return False
+        # Configure the wfb bridge parameters based on the wifi card.
+        parser = ConfigParser()
+        parser.read(self.wfb_config_filename)
+        parser.set('global', 'mcs', '0' if not mcs else '1')
+        parser.set('global', 'stbc', '0' if not stbc else '1')
+        parser.set('global', 'ldpc', '0' if not ldpc else '1')
+        with open(self.wfb_config_filename, 'w') as configfile:
+            parser.write(configfile)
 
         # Bring this card is down
         try:
@@ -85,6 +40,17 @@ class rtl88xxau(object):
         except:
             logging.error(interface + " does not support monitor mode")
             return None
+
+        # Configure the transmit power level
+        try:
+            # First update the power override parameter
+            with open("/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override", "w") as fp:
+                fp.write(str(txpower))
+            # Now "kick" the driver to ensure the new value is read.
+            os.system("iw dev " + interface + " set txpower fixed 3000")
+        except Exception as e:
+            logging.warning("Could not set txpower on " + interface)
+            logging.warning(e)
 
         # Bring the interface up
         try:

@@ -3,18 +3,13 @@
 # -----------------
 #
 # Datarate  Mbps  Modulation
-# 1         1     DSSS
-# 2         2     DSSS
-# 3         5.5   DSSS
-# 4         11    DSSS
-# 5         6     ODFM
-# 6         9     ODFM
-# 7         12    ODFM
-# 8         18    ODFM
-# 9         24    ODFM
-# 10        36    ODFM
-# 11        48    ODFM
-# 12        54    ODFM
+# 0         5.5   DSSS
+# 1         11    DSSS
+# 2         18    ODFM
+# 3         24    ODFM
+# 4         36    ODFM
+# 5         48    ODFM
+# 6         54    ODFM
 #
 # MCS Datarates
 #
@@ -53,13 +48,16 @@
 # 31        260   64-QAM
 
 [global]
-mode = air
+mode = ground
 loglevel = critical
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200
+mcs = 1
+stbc = 1
+ldpc = 1
 
 [video]
 name = Video Downlink
@@ -73,9 +71,6 @@ blocks = 8
 fec = 4
 type = data
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 3
 
 [video2]
@@ -90,9 +85,6 @@ blocks = 8
 fec = 4
 type = data
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 3
 
 [telemetry]
@@ -104,9 +96,6 @@ outport = 14550
 outhost = 127.0.0.1
 type = data
 priority = 3
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 0
 
 [rc]
@@ -118,9 +107,6 @@ outport = 14551
 outhost = 127.0.0.1
 type = rts
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 0
 
 [ipup]
@@ -132,9 +118,6 @@ outport = 8345
 outhost = 127.0.0.1
 type = data
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 1
 
 [ipdown]
@@ -146,9 +129,6 @@ outport = 8346
 outhost = 127.0.0.1
 type = data
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 1
 
 [video_no_fec]
@@ -160,9 +140,6 @@ outport = 5700
 outhost = 127.0.0.1
 type = data
 priority = 1
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 4
 
 [status_down]
@@ -173,9 +150,6 @@ outport = 5800
 outhost = 127.0.0.1
 type = data
 priority = 15
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 4
 
 [status_up]
@@ -186,9 +160,6 @@ outport = 5801
 outhost = 127.0.0.1
 type = data
 priority = 15
-mcs = 1
-stbc = 1
-ldpc = 1
 datarate = 0
 
 [packed_status_down]

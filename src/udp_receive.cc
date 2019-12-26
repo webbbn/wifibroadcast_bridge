@@ -62,6 +62,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
   // Extract a couple of global options.
   float syslog_period = conf.get<float>("global.syslogperiod", 5);
   float status_period = conf.get<float>("global.statusperiod", 0.2);
+  bool mcs = conf.get<uint8_t>("global.mcs", 0) ? true : false;
+  bool stbc = conf.get<uint8_t>("global.stbc", 0) ? true : false;
+  bool ldpc = conf.get<uint8_t>("global.ldpc", 0) ? true : false;
 
   // If this is the ground side, get the host and port to send status messages to.
   std::string status_host;
@@ -128,18 +131,12 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
       bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
-      // Get the Tx parameters (optional).
-      WifiOptions opts;
-      opts.data_rate = v.second.get<uint8_t>("datarate", 18);
-      opts.mcs = v.second.get<uint8_t>("mcs", 0) ? true : false;
-      opts.stbc = v.second.get<uint8_t>("stbc", 0) ? true : false;
-      opts.ldpc = v.second.get<uint8_t>("ldpc", 0) ? true : false;
-
       // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
       static const uint8_t length_len = 2;
       std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize + length_len));
 
       // Create the FEC encoder if requested.
+      WifiOptions opts;
       if (type == "data"){
 	opts.link_type = DATA_LINK;
       } else if (type == "short") {
@@ -149,6 +146,10 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       } else {
 	opts.link_type = DATA_LINK;
       }
+      opts.data_rate = v.second.get<uint8_t>("datarate", 18);
+      opts.mcs = mcs;
+      opts.stbc = stbc;
+      opts.ldpc = ldpc;
 
       // Create the logging thread if this is a status down channel.
       if ((group == "status_down") || (group == "status_up")) {
