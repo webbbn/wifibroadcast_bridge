@@ -109,8 +109,6 @@ install(FILES etc/modprobe.d/rtl88au.conf DESTINATION etc/modprobe.d COMPONENT c
 # Replace the standard configuration file with a link to this file after installation.
 install(FILES etc/modprobe.d/ath9k_htc.conf.openhd DESTINATION etc/modprobe.d COMPONENT configuration)
 install(DIRECTORY lib/firmware/ath9k_htc DESTINATION lib/firmware COMPONENT configuration)
-install(FILES etc/modprobe.d/ath9k_htc.conf DESTINATION etc/modprobe.d COMPONENT configuration)
-install(FILES lib/firmware/ath9k_htc/htc_9271-1.4.0.fw DESTINATION lib/firmware/ath9k_htc/htc_9271-1.4.0.fw COMPONENT configuration)
 
 # Install the include files
 install(FILES
