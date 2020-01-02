@@ -31,8 +31,8 @@ jobs:
         sudo rm -rf build
     - name: compile-buster-arm64
       run: |
-        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/buster build/wifibroadcast_bridge_*.deb
         docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/buster build/wifibroadcast_bridge_*.deb
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
