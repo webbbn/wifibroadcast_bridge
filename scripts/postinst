@@ -1,0 +1,6 @@
+#!/bin/sh
+
+systemctl enable wifi_config
+systemctl enable wfb_bridge
+systemctl restart wifi_config
+systemctl restart wfb_bridge
