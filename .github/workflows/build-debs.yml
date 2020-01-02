@@ -12,7 +12,7 @@ jobs:
     - name: install-build-deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y qemu-user-static python3 python3-pip
+        sudo apt-get install -y qemu-user-static python3 python3-pip python3-setuptools python3-wheel
     - name: install-cloudsmith-cli
       run: sudo pip3 install cloudsmith-cli
     - name: compile-kali-rolling
