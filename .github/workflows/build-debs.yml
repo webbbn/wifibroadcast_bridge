@@ -12,37 +12,45 @@ jobs:
     - name: install-build-deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y qemu-user-static
+        sudo apt-get install -y qemu-user-static python3 python3-pip
+    - name: install-cloudsmith-cli
+      run: sudo pip3 install cloudsmith-cli
     - name: compile-kali-rolling
       run: |
         docker run -v `pwd`:/mnt --rm kalilinux/kali-rolling /bin/bash -c "cd /mnt; scripts/mkdeb"
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/kali-rolling debs/wifibroadcast_bridge_*.deb
         mkdir -p deb/kali-rolling
         sudo mv build/*.deb deb/kali-rolling
         sudo rm -rf build
     - name: compile-bionic-armhf
       run: |
         docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/ubuntu/bionic debs/wifibroadcast_bridge_*.deb
         mkdir deb/bionic-armhf
         sudo mv build/*.deb deb/bionic-armhf
         sudo rm -rf build
     - name: compile-buster-armhf
       run: |
         docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm yummygooey/raspbian-buster /bin/bash -c "cd /mnt; scripts/mkdeb"
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/buster debs/wifibroadcast_bridge_*.deb
         mkdir deb/buster-armhf
         sudo mv build/*.deb deb/buster-armhf
         sudo rm -rf build
     - name: compile-bionic-arm64
       run: |
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/buster debs/wifibroadcast_bridge_*.deb
         docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
         mkdir deb/bionic-arm64
         sudo mv build/*.deb deb/bionic-arm64
         sudo rm -rf build
     - name: compile-buster-arm64
       run: |
+        CLOUDSMITH_API_KEY=${{ secrets.CLOUDSMITH_API_KEY }} cloudsmith push deb openhd/testing/debian/buster debs/wifibroadcast_bridge_*.deb
         docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
         mkdir deb/buster-arm64
         sudo mv build/*.deb deb/buster-arm64
         sudo rm -rf build
+    - name: Upload to Cloudsmith
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
