@@ -50,7 +50,6 @@ jobs:
         mkdir deb/buster-arm64
         sudo mv build/*.deb deb/buster-arm64
         sudo rm -rf build
-    - name: Upload to Cloudsmith
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
       with:
