@@ -33,9 +33,9 @@ python_dir = os.path.join(root_dir, "lib/python" + str(sys.version_info.major) +
                           "." + str(sys.version_info.minor) + "/site-packages")
 sys.path.append(python_dir)
 
-config_filename = os.path.join(root_dir, "etc/default/wifi_config")
+config_filename = os.path.join(root_dir, "etc/default/wfb_config")
 if not os.path.exists(config_filename):
-    config_filename = os.path.join(os.path.dirname(root_dir), "etc/default/wifi_config")
+    config_filename = os.path.join(os.path.dirname(root_dir), "etc/default/wfb_bridge")
 
 udev_context = udev.Context()
 
@@ -55,7 +55,7 @@ class Network(object):
         """ Read the configuration file """
         self.config_filename = filename
         self.m_config = configparser.ConfigParser()
-        self.m_config['DEFAULT'] = {
+        self.m_config['global'] = {
             'frequency': '2412',
             'txpower': '40',
             'bitrate': '11',
@@ -72,20 +72,20 @@ class Network(object):
             exit
 
         # Configure the logger
-        log_level = getattr(logging, self.m_config['DEFAULT'].get('log_level').upper())
-        syslog_level = getattr(logging, self.m_config['DEFAULT'].get('syslog_level').upper())
-        if not isinstance(log_level, int):
-            print("Invalid log level: %s - setting to info" % (args.log_level))
-            log_level = logging.INFO
+        loglevel = getattr(logging, self.m_config['global'].get('loglevel').upper())
+        syslog_level = getattr(logging, self.m_config['global'].get('syslog_level').upper())
+        if not isinstance(loglevel, int):
+            print("Invalid log level: %s - setting to info" % (args.loglevel))
+            loglevel = logging.INFO
         if not isinstance(syslog_level, int):
             print("Invalid syslog level: %s - setting to info" % (args.syslog_level))
             syslog_level = logging.INFO
         logger = logging.getLogger('wifi_config')
         stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(log_level)
+        stream_handler.setLevel(loglevel)
         syslog_handler = logging.handlers.SysLogHandler(address = "/dev/log")
         syslog_handler.setLevel(syslog_level)
-        logging.basicConfig(level=min(log_level, syslog_level), format="%(asctime)s %(levelname)s: %(message)s",
+        logging.basicConfig(level=min(loglevel, syslog_level), format="%(asctime)s %(levelname)s: %(message)s",
                             datefmt="%H:%M:%S", handlers = [stream_handler, syslog_handler])
 
         # Configure the reload signal handler
@@ -165,24 +165,25 @@ class Network(object):
         logging.info("Found driver of type: %s" % (module_name))
 
         # Retrieve the configuration file
-        frequency = self.m_config[module_name].getint('frequency', 0)
+        config_group = 'device-' + module_name
+        frequency = self.m_config[config_group].getint('frequency', 0)
         if frequency == 0:
-            frequency = self.m_config['DEFAULT'].getint('frequency', 0)
-        txpower = self.m_config[module_name].getint('txpower', 0)
+            frequency = self.m_config['global'].getint('frequency', 0)
+        txpower = self.m_config[config_group].getint('txpower', 0)
         if txpower == 0:
-            txpower = self.m_config['DEFAULT'].getint('txpower', 0)
-        bitrate = self.m_config[module_name].getfloat('bitrate', 0)
+            txpower = self.m_config['global'].getint('txpower', 0)
+        bitrate = self.m_config[config_group].getfloat('bitrate', 0)
         if bitrate == 0:
-            bitrate = self.m_config['DEFAULT'].getfloat('bitrate', 0)
-        mcs  = self.m_config[module_name].getfloat('mcs', 0)
+            bitrate = self.m_config['global'].getfloat('bitrate', 0)
+        mcs  = self.m_config[config_group].getfloat('mcs', 0)
         if mcs == 0:
-            mcs = self.m_config['DEFAULT'].getfloat('mcs', 0)
-        stbc  = self.m_config[module_name].getfloat('stbc', 0)
+            mcs = self.m_config['global'].getfloat('mcs', 0)
+        stbc  = self.m_config[config_group].getfloat('stbc', 0)
         if stbc == 0:
-            stbc = self.m_config['DEFAULT'].getfloat('stbc', 0)
-        ldpc  = self.m_config[module_name].getfloat('ldpc', 0)
+            stbc = self.m_config['global'].getfloat('stbc', 0)
+        ldpc  = self.m_config[config_group].getfloat('ldpc', 0)
         if ldpc == 0:
-            ldpc = self.m_config['DEFAULT'].getfloat('ldpc', 0)
+            ldpc = self.m_config['global'].getfloat('ldpc', 0)
 
         # Get the card for this interface
         try:

@@ -48,18 +48,36 @@
 # 31        260   64-QAM
 
 [global]
-mode = ground
+mode = air
 loglevel = critical
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200
+frequency = 2412
+txpower = 45
+bitrate = 11
 mcs = 1
 stbc = 1
 ldpc = 1
 
-[video]
+[device-ath9k_htc]
+frequency = 2412
+txpower = 45
+bitrate = 11
+mcs = 0
+stbc = 0
+ldpc = 0
+
+[device-rtl88xxau]
+frequency = 5220
+txpower = 45
+mcs = 1
+stbc = 1
+ldpc = 1
+
+[link-video]
 name = Video Downlink
 direction = down
 port = 1
@@ -73,7 +91,7 @@ type = data
 priority = 1
 datarate = 3
 
-[video2]
+[link-video2]
 name = Second Video Downlink
 direction = down
 port = 10
@@ -87,7 +105,7 @@ type = data
 priority = 1
 datarate = 3
 
-[telemetry]
+[link-telemetry]
 name = Telemetry Downlink
 direction = down
 port = 2
@@ -98,7 +116,7 @@ type = data
 priority = 3
 datarate = 0
 
-[rc]
+[link-rc]
 name = Radio Control Uplink
 direction = up
 port = 3
@@ -109,7 +127,7 @@ type = rts
 priority = 1
 datarate = 0
 
-[ipup]
+[link-ipup]
 name = IP Forward Uplink
 direction = up
 port = 4
@@ -120,7 +138,7 @@ type = data
 priority = 1
 datarate = 1
 
-[ipdown]
+[link-ipdown]
 name = IP Forward Downlink
 direction = down
 port = 5
@@ -131,7 +149,7 @@ type = data
 priority = 1
 datarate = 1
 
-[video_no_fec]
+[link-video_no_fec]
 name = Video Downlink With No Forward Error Correction
 direction = down
 port = 6
@@ -142,7 +160,7 @@ type = data
 priority = 1
 datarate = 4
 
-[status_down]
+[link-status_down]
 name = Downlink port for link status messages
 direction = down
 port = 7
@@ -152,7 +170,7 @@ type = data
 priority = 15
 datarate = 4
 
-[status_up]
+[link-status_up]
 name = Uplink port for link status messages
 direction = up
 port = 8
@@ -162,7 +180,7 @@ type = data
 priority = 15
 datarate = 0
 
-[packed_status_down]
+[link-packed_status_down]
 name = UDP port to send packed status messages to
 direction = down
 outport = 5154

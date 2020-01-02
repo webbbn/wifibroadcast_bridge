@@ -138,8 +138,8 @@ int main(int argc, const char** argv) {
   BOOST_FOREACH(const auto &v, conf) {
     const std::string &group = v.first;
 
-    // Ignore global options.
-    if (group == "global") {
+    // Ignore sections that don't start with 'link-'
+    if (group.substr(0, 5) != "link-") {
       continue;
     }
 

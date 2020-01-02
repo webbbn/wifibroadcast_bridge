@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
+# Set the version
+set(VERSION "0.9.0")
+
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   SET(CMAKE_INSTALL_PREFIX "/" CACHE PATH "Change the default installation director (default=/)" FORCE)
@@ -93,7 +96,6 @@ install(DIRECTORY python/ DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT applicati
 
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
-install(FILES conf/wifi_config DESTINATION etc/default COMPONENT configuration)
 
 # Add rules to install the services files
 install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
@@ -124,7 +126,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-opt
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "webbbn@gmail.con")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
-set(CPACK_PACKAGE_VERSION "0.1.0")
+set(CPACK_PACKAGE_VERSION ${VERSION})
 set(CPACK_PACKAGE_INSTALL_DIRECTORY /)
 set(CPACK_SET_DESTDIR true)
 set(CPACK_INSTALL_PREFIX /)

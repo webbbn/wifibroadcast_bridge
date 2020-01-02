@@ -72,15 +72,15 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
   std::string packed_status_host;
   uint16_t packed_status_port = 0;
   if (mode == "ground") {
-    status_host = conf.get<std::string>("status_down.outhost", "");
-    status_port = conf.get<uint16_t>("status_down.outport", 0);
+    status_host = conf.get<std::string>("link-status_down.outhost", "");
+    status_port = conf.get<uint16_t>("link-status_down.outport", 0);
     LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
-    packed_status_host = conf.get<std::string>("packed_status_down.outhost", "");
-    packed_status_port = conf.get<uint16_t>("packed_status_down.outport", 0);
+    packed_status_host = conf.get<std::string>("link-packed_status_down.outhost", "");
+    packed_status_port = conf.get<uint16_t>("link-packed_status_down.outport", 0);
     LOG_INFO << "Sending packed status to udp://" << packed_status_host << ":" << packed_status_port;
   } else {
-    status_host = conf.get<std::string>("status_up.outhost", "");
-    status_port = conf.get<uint16_t>("status_up.outport", 0);
+    status_host = conf.get<std::string>("link-status_up.outhost", "");
+    status_port = conf.get<uint16_t>("link-status_up.outport", 0);
     LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
   }
 
@@ -89,8 +89,8 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
   for (const auto &v : conf) {
     const std::string &group = v.first;
 
-    // Ignore global options and the output-only status port
-    if ((group == "global") || (group == "packed_status_down")) {
+    // Ignore non-link sections
+    if ((group.substr(0, 5) != "link-") || (group == "link-packed_status_down")) {
       continue;
     }
 
@@ -104,7 +104,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
       // Get the UDP port number (required except for status).
       uint16_t inport = v.second.get<uint16_t>("inport", 0);
-      if ((inport == 0) && (group != "status_down") && (group != "status_up")) {
+      if ((inport == 0) && (group != "link-status_down") && (group != "link-status_up")) {
 	LOG_CRITICAL << "No inport specified for " << group;
 	return false;
       }
@@ -152,7 +152,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       opts.ldpc = ldpc;
 
       // Create the logging thread if this is a status down channel.
-      if ((group == "status_down") || (group == "status_up")) {
+      if ((group == "link-status_down") || (group == "link-status_up")) {
 
 	// Create the stats logging thread.
 	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
