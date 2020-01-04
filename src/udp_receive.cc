@@ -57,14 +57,15 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       boost::property_tree::ptree &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-			       const std::string &mode) {
+			       const std::string &mode,
+			       const std::string &device_type) {
 
   // Extract a couple of global options.
   float syslog_period = conf.get<float>("global.syslogperiod", 5);
   float status_period = conf.get<float>("global.statusperiod", 0.2);
-  bool mcs = conf.get<uint8_t>("global.mcs", 0) ? true : false;
-  bool stbc = conf.get<uint8_t>("global.stbc", 0) ? true : false;
-  bool ldpc = conf.get<uint8_t>("global.ldpc", 0) ? true : false;
+  bool mcs = conf.get<uint8_t>("device-" + device_type + ".mcs", 0) ? true : false;
+  bool stbc = conf.get<uint8_t>("device-" + device_type + "stbc", 0) ? true : false;
+  bool ldpc = conf.get<uint8_t>("device-" + device_type + "ldpc", 0) ? true : false;
 
   // If this is the ground side, get the host and port to send status messages to.
   std::string status_host;

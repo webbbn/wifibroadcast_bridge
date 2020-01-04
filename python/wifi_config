@@ -9,20 +9,23 @@ import signal
 import sys
 import time
 import pyudev as udev
+import subprocess as sp
 
-import pyric
-import pyric.pyw as pyw
-import pyric.utils.hardware as pywhw
-
-class Card(enum.Enum):
-    ath9k = 1
-    rtl88xx = 2
-
+# [driver][model#] -> module name
 module_name_mappings = {
-    "rtl8812au": "rtl88xxau",
-    "rtl88xxau": "rtl88xxau",
-    "88XXau": "rtl88xxau",
-    "ath9k_htc": "ath9k_htc"
+    "rtl8812au": {
+        "", "rtl8812au"
+    },
+    "rtl88xxau": {
+        "": "rtl8812au"
+    },
+    "88XXau": {
+        "": "rtl8812au"
+    },
+    "ath9k_htc": {
+        "7010": "ar7010",
+        "9271": "ar9271"
+    }
 }
 
 # Setup some paths based on the directory that this script was run frum.
@@ -33,9 +36,12 @@ python_dir = os.path.join(root_dir, "lib/python" + str(sys.version_info.major) +
                           "." + str(sys.version_info.minor) + "/site-packages")
 sys.path.append(python_dir)
 
-config_filename = os.path.join(root_dir, "etc/default/wfb_config")
-if not os.path.exists(config_filename):
-    config_filename = os.path.join(os.path.dirname(root_dir), "etc/default/wfb_bridge")
+# The arguments are the config filename and the mode
+if len(sys.argv) != 3 or (sys.argv[2] != "air" and sys.argv[2] != "ground"):
+    sys.stderr.write("Usage: %s <config file> <mode (air|ground)>\n" % sys.argv[0])
+    exit(-1)
+config_filename = sys.argv[1]
+mode = sys.argv[2]
 
 udev_context = udev.Context()
 
@@ -50,6 +56,7 @@ class Network(object):
 
     def __init__(self):
         self.m_devices = []
+        self.m_wfb_bridge_proc = None
 
     def read_config(self, filename):
         """ Read the configuration file """
@@ -91,6 +98,7 @@ class Network(object):
         # Configure the reload signal handler
         signal.signal(signal.SIGHUP, handler)
 
+
     def reload_config(self, filename):
         logging.debug("Reload config called")
 
@@ -98,72 +106,83 @@ class Network(object):
         self.read_config(self.config_filename)
 
         # Re-configure all the interfaces
-        for iface in net.monitor_interfaces():
-            logging.info("Reconfiguring interface: " + iface)
-            net.configure_interface(iface)
+        self.configure_interfaces(force=True)
 
-    def supports_monitor(self, device_name):
-        """ Check if this card support monitor mode """
-        try:
-            card = pyw.getcard(device_name)
-            if 'monitor' in pyw.devmodes(card):
-                return device_name
-            return True
+        # Restart the wfb_bridge process
+        self.restart_processes()
 
-        except pyric.error as e:
-            return False
+    def card_type(self, device):
+        """Lookup the canonical name for this wifi card"""
 
-    def monitor_interfaces(self):
-        """Get a list of interfaces that support monitor mode"""
-
-        # Get a list of all the interfaces.
-        ret = []
-        for iface in pyw.interfaces():
-            if self.supports_monitor(iface):
-                # Add the card to the list
-                ret.append(iface)
-
-        # Return the collected list
-        return ret
-
-    def configure_interface(self, interface):
-        """Configure the given card in monitor mode"""
-
-        # See if this device has been unplugged
-        if interface in self.m_devices:
-            try:
-                card = pyw.getcard(device_name)
-            except:
-                logging.debug("Removing: " + interface)
-                self.m_devices.remove(interface)
-                return None
-
-        # Determine the type of card for this interface
-        try:
-            driver = pywhw.ifcard(interface)[0]
-            logging.info("Found wifi card with driver: %s" % (driver))
-        except Exception as e:
-            logging.error("Error creating the interface for: %s" % (driver))
+        driver = device.get('ID_USB_DRIVER')
+        model_id = device.get('ID_MODEL_ID')
+        if driver not in module_name_mappings:
+            logging.debug("Unable to find name mapping for driver: %s" % (driver))
+            return None
+        name_list = module_name_mappings[driver]
+        if model_id in name_list:
+            return name_list[model_id]
+        elif "" in name_list:
+            return name_list[""]
+        else:
+            logging.debug("Unable to find name mapping for model: %s:%s" % (driver, model_id))
             return None
 
+
+    def configure_interfaces(self, force=False):
+        """A device has been plugged/unplugged. Configure any new interface"""
+
+        # Configure all of them if force is True
+        if force == True:
+            self.m_devices = []
+
+        # Get a list of devices to see which one(s) changed.
+        devices = []
+        for device in udev_context.list_devices(subsystem='net'):
+            if device.device_type == 'wlan':
+                devices.append(device)
+
+        # Configure the devices that have been added
+        cur_devices = []
+        for device in devices:
+            if device not in self.m_devices:
+                if self.configure_interface(device):
+                    cur_devices.append(device)
+            else:
+                cur_devices.append(device)
+
+        # Update the list of configured devices
+        self.m_devices = cur_devices
+
+        # Restart the wfb_bridge process
+        self.restart_processes()
+
+
+    def configure_interface(self, device):
+        """Configure the given card in monitor mode"""
+
+        # Get some info about the card
+        interface = device.sys_name
+        driver = device.get('ID_USB_DRIVER')
+        model_id = device.get('ID_MODEL_ID')
+        logging.info("Attempting to configure interface: " + interface)
 
         # Try to load the python module for configuring this device type
         # If the module doesn't exist, the card is not supported
-        if driver not in module_name_mappings:
-            logging.debug("Unable to load find name mapping for driver: %s" % (driver))
-            return None
-        module_name = module_name_mappings[driver]
+        module_name = self.card_type(device)
+        if module_name is None:
+            return False
         try:
             module = __import__('wifibroadcast', globals(), locals(), [module_name])
             submodule = getattr(module, module_name)
             class_ = getattr(submodule, module_name)
-            driver = class_(interface)
+            dev = class_(interface)
         except Exception as e:
-            logging.debug("Unable to load module for driver: %s" % (driver))
+            logging.debug("Unable to load module for driver: %s:%s" % (driver, model_id))
             logging.debug(e)
-            return None
+            return False
         logging.info("Found driver of type: %s" % (module_name))
-
+            
         # Retrieve the configuration file
         config_group = 'device-' + module_name
         frequency = self.m_config[config_group].getint('frequency', 0)
@@ -185,40 +204,48 @@ class Network(object):
         if ldpc == 0:
             ldpc = self.m_config['global'].getfloat('ldpc', 0)
 
-        # Get the card for this interface
-        try:
-            card = pyw.getcard(interface)
-        except pyric.error as e:
-            logging.error("Error connecting to the interface: " + interface)
-            return None
-
-        # Configure this card
+        # Configure this interface
         logging.info("Configuring %s to %d and txpower=%d, bitrate=%f" %
                      (interface, frequency, txpower, bitrate))
-        add = driver.configure(interface, frequency, txpower, bitrate, mcs, stbc, ldpc)
+        add = dev.configure(interface, frequency, txpower, bitrate, mcs, stbc, ldpc)
         logging.info("Configured: %s" % (interface))
 
         # Add this to the list of interfaces
         if add:
-            self.m_devices.append(interface)
+            self.m_devices.append(device)
 
-        # Reload the wfb_bridge process just in case we changed it's configuration
-        os.system("systemctl reload wfb_bridge")
+        return True
 
-        return card
 
-    def is_configured(self, interface):
-        return interface in self.m_devices
+    def restart_processes(self):
+
+        # Stop the wfb_bridge subproces if it's been started
+        if self.m_wfb_bridge_proc is not None:
+            self.m_wfb_bridge_proc.kill()
+            self.m_wfb_bridge_proc = None
+
+        # Don't start the wfb_bridge process until we have an interface to connect to
+        if len(self.m_devices) == 0:
+            return
+
+        # Add the wifi cards to the command list
+        cmd = ["wfb_bridge", config_filename, mode]
+        for device in self.m_devices:
+            cmd .append("%s:%s" % (device.sys_name, self.card_type(device)))
+
+        # Start the wfb_bridge process on this interface
+        self.m_wfb_bridge_proc = sp.Popen(cmd)
+        logging.info("Started wfb_bridge with PID: %d" % (self.m_wfb_bridge_proc.pid))
+
 
 net = Network()
 net.read_config(config_filename)
 
 # Configure any existing devices
-for iface in net.monitor_interfaces():
-    net.configure_interface(iface)
+net.configure_interfaces()
 
 # Monitor for any network adapters getiting plugged in or unplugged
 monitor = udev.Monitor.from_netlink(udev_context)
 monitor.filter_by('net')
 for device in iter(monitor.poll, None):
-    net.configure_interface(device.sys_name)
+    net.configure_interfaces()

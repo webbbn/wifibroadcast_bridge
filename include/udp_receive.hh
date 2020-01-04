@@ -16,4 +16,5 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       boost::property_tree::ptree &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-			       const std::string &mode);
+			       const std::string &mode,
+			       const std::string &device_type);

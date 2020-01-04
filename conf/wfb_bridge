@@ -48,21 +48,14 @@
 # 31        260   64-QAM
 
 [global]
-mode = air
 loglevel = critical
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200
-frequency = 2412
-txpower = 45
-bitrate = 11
-mcs = 1
-stbc = 1
-ldpc = 1
 
-[device-ath9k_htc]
+[device-ar9271]
 frequency = 2412
 txpower = 45
 bitrate = 11
@@ -70,15 +63,23 @@ mcs = 0
 stbc = 0
 ldpc = 0
 
-[device-rtl88xxau]
-frequency = 5220
+[device-ar7010]
+frequency = 2412
+txpower = 45
+bitrate = 11
+mcs = 0
+stbc = 0
+ldpc = 0
+
+[device-rtl8812au]
+frequency = 5280
 txpower = 45
 mcs = 1
 stbc = 1
 ldpc = 1
 
 [link-video]
-name = Video Downlink
+nwiame = Video Downlink
 direction = down
 port = 1
 inport = 5600

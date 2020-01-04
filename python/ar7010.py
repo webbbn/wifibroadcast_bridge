@@ -3,28 +3,28 @@ import os
 import re
 import logging
 import subprocess
-from configparser import ConfigParser
+#from configparser import ConfigParser
 
-class ath9k_htc(object):
-    """Configure the ath9k_htc wifi adapter"""
-    wfb_config_filename = "/etc/default/wfb_bridge"
+class ar7010(object):
+    """Configure the ar7010 wifi adapter"""
+    #wfb_config_filename = "/etc/default/wfb_bridge"
 
     def __init__(self, interface):
         self.interface = interface
 
     def name(self):
-        return "ath9k_htc"
+        return "ar7010"
         
     def configure(self, interface, frequency, txpower, bitrate, mcs, stbc, ldpc):
 
         # Configure the wfb bridge parameters based on the wifi card.
-        parser = ConfigParser()
-        parser.read(self.wfb_config_filename)
-        parser.set('global', 'mcs', '1' if mcs else '0')
-        parser.set('global', 'stbc', '1' if stbc else '0')
-        parser.set('global', 'ldpc', '1' if ldpc else '0')
-        with open(self.wfb_config_filename, 'w') as configfile:
-            parser.write(configfile)
+        #parser = ConfigParser()
+        #parser.read(self.wfb_config_filename)
+        #parser.set('global', 'mcs', '1' if mcs else '0')
+        #parser.set('global', 'stbc', '1' if stbc else '0')
+        #parser.set('global', 'ldpc', '1' if ldpc else '0')
+        #with open(self.wfb_config_filename, 'w') as configfile:
+            #parser.write(configfile)
 
         # Try to bring up the interface
         try:

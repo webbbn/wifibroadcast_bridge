@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.9.2")
+set(VERSION "0.9.3")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -98,8 +98,7 @@ install(DIRECTORY python/ DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT applicati
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
 
 # Add rules to install the services files
-install(FILES services/wfb_bridge.service DESTINATION etc/systemd/system COMPONENT configuration)
-install(FILES services/wifi_config.service DESTINATION etc/systemd/system COMPONENT configuration)
+install(FILES services/wfb_bridge@.service DESTINATION etc/systemd/system COMPONENT configuration)
 
 # Add rules to install the NetworkManager wifi ignore list
 install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)
@@ -118,6 +117,9 @@ install(FILES
   include/fec.hh
   include/raw_socket.hh
   DESTINATION ${IncludeDir}/wifibroadcast COMPONENT development)
+
+# Add uninstall target
+add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
 
 # Add the debian debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-options-dev,libboost-system-dev,libboost-filesystem-dev,libboost-log-dev,firmware-ath9k-htc")

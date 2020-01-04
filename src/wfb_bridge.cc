@@ -48,6 +48,8 @@ namespace pt=boost::property_tree;
 
 
 int main(int argc, const char** argv) {
+
+  // Ensure we've running with root privileges
   auto uid = getuid();
   if (uid != 0) {
     std::cerr << "This application must be run as root or with root privileges.\n";
@@ -60,13 +62,21 @@ int main(int argc, const char** argv) {
     ;
 
   std::string conf_file;
+  std::string mode;
+  std::vector<std::string> devices;
   po::options_description pos("Positional");
   pos.add_options()
     ("conf_file", po::value<std::string>(&conf_file),
      "the path to the configuration file used for configuring ports")
+    ("mode", po::value<std::string>(&mode),
+     "the mode (air|ground|")
+    ("devices", po::value<std::vector<std::string> >(&devices),
+     "the wifi devices to connect to (interface:type interface:type ...)")
     ;
   po::positional_options_description p;
   p.add("conf_file", 1);
+  p.add("mode", 1);
+  p.add("devices", -1);
 
   po::options_description all_options("Allowed options");
   all_options.add(desc).add(pos);
@@ -75,11 +85,16 @@ int main(int argc, const char** argv) {
 	    options(all_options).positional(p).run(), vm);
   po::notify(vm);
 
-  if (vm.count("help") || !vm.count("conf_file")) {
-    std::cout << "Usage: options_description [options] <configuration file>\n";
+  if (vm.count("help") || !vm.count("conf_file") || !vm.count("mode") || devices.empty()) {
+    std::cout << "Usage: options_description [options] <configuration file> <mode (air|ground> <devices>\n";
     std::cout << desc << std::endl;
     return EXIT_SUCCESS;
   }
+
+  // For now, just use the first device.
+  size_t colon = devices[0].find(":");
+  std::string device = devices[0].substr(0, colon);
+  std::string device_type = devices[0].substr(colon + 1, devices[0].size());
 
   // Parse the configuration file.
   pt::ptree conf;
@@ -91,7 +106,6 @@ int main(int argc, const char** argv) {
   }
 
   // Read the global parameters
-  std::string mode = conf.get<std::string>("global.mode", "air");
   std::string log_level = conf.get<std::string>("global.loglevel", "info");
   std::string syslog_level = conf.get<std::string>("global.sysloglevel", "info");
   std::string syslog_host = conf.get<std::string>("global.sysloghost", "localhost");
@@ -100,8 +114,9 @@ int main(int argc, const char** argv) {
 
   // Create the logger
   Logger::create(log_level, syslog_level, syslog_host);
-  LOG_INFO << "wfb_bridge running in " << mode << " mode and logging '"
-	   << log_level << "' to console and '"
+  LOG_INFO << "wfb_bridge running in " << mode << " mode, connecting to " << device
+	   << " with device type " << device_type;
+  LOG_INFO << "logging '" << log_level << "' to console and '"
 	   << syslog_level << "' to syslog";
 
   // Create the message queues.
@@ -117,7 +132,8 @@ int main(int argc, const char** argv) {
   TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
 
   // Create the UDP -> raw socket interfaces
-  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other, mode)) {
+  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other, mode,
+				 device_type)) {
     return EXIT_FAILURE;
   }
 
@@ -194,42 +210,17 @@ int main(int argc, const char** argv) {
   };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
 
-  // Interfaces can come and go, so we need to loop until an interface comes up
-  // and deal with interfaces going down.
+  // Keep trying to connect/reconnect to the device
   while (1) {
     bool terminate = false;
-    LOG_DEBUG << "Detecting network interfaces";
-
-    // Get a list of the network devices.
-    std::vector<std::string> ifnames;
-    if (!detect_network_devices(ifnames)) {
-      LOG_CRITICAL << "Error reading the network interfaces.";
-      return EXIT_FAILURE;
-    }
-    if (ifnames.empty()) {
-      sleep(1);
-      continue;
-    }
-    LOG_DEBUG << "Network interfaces found: ";
-    for (const auto &ifname : ifnames) {
-      LOG_DEBUG << "  " << ifname;
-    }
-    // Give things time to settle before start trying to connect
-    sleep(2);
 
     // Open the raw transmit socket
     RawSendSocket raw_send_sock((mode == "ground"));
     // Connect to the raw wifi interfaces.
-    bool valid_send_sock = false;
-    for (const auto &device : ifnames) {
-      if (raw_send_sock.add_device(device, true)) {
-	valid_send_sock = true;
-	LOG_DEBUG << "Transmitting on interface: " << device;
-	break;
-      }
-    }
-    if (!valid_send_sock) {
-      LOG_DEBUG << "Error opeing the raw socket for transmiting.";
+    if (raw_send_sock.add_device(device, true)) {
+      LOG_DEBUG << "Transmitting on interface: " << device;
+    } else {
+      LOG_DEBUG << "Error opening the raw socket for transmiting: " << device;
       sleep(1);
       continue;
     }
@@ -243,16 +234,12 @@ int main(int argc, const char** argv) {
 
     // Open the raw receive socket
     RawReceiveSocket raw_recv_sock((mode == "ground"));
-    bool valid_recv_sock = false;
-    for (const auto &device : ifnames) {
-      LOG_DEBUG << "Trying to configure device: " << device;
-      if (raw_recv_sock.add_device(device)) {
-	valid_recv_sock = true;
-	LOG_INFO << "Receiving on interface: " << device;
-	break;
-      } else {
-	LOG_DEBUG << "Unable to configure wifi device: " << device;
-      }
+    if (raw_recv_sock.add_device(device)) {
+      LOG_DEBUG << "Receiving on interface: " << device;
+    } else {
+      LOG_DEBUG << "Error opening the raw socket for receiving: " << device;
+      sleep(1);
+      continue;
     }
 
     // Create the raw socket receive thread

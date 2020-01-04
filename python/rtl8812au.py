@@ -3,9 +3,9 @@ import re
 import os
 import logging
 import subprocess
-from configparser import ConfigParser
+#from configparser import ConfigParser
 
-class rtl88xxau(object):
+class rtl8812au(object):
     """Configure the rtl8812au wifi adapter"""
     wfb_config_filename = "/etc/default/wfb_bridge"
 
@@ -18,13 +18,13 @@ class rtl88xxau(object):
     def configure(self, interface, frequency, txpower, bitrate, mcs, stbc, ldpc):
 
         # Configure the wfb bridge parameters based on the wifi card.
-        parser = ConfigParser()
-        parser.read(self.wfb_config_filename)
-        parser.set('global', 'mcs', '0' if not mcs else '1')
-        parser.set('global', 'stbc', '0' if not stbc else '1')
-        parser.set('global', 'ldpc', '0' if not ldpc else '1')
-        with open(self.wfb_config_filename, 'w') as configfile:
-            parser.write(configfile)
+        #parser = ConfigParser()
+        #parser.read(self.wfb_config_filename)
+        #parser.set('global', 'mcs', '0' if not mcs else '1')
+        #parser.set('global', 'stbc', '0' if not stbc else '1')
+        #parser.set('global', 'ldpc', '0' if not ldpc else '1')
+        #with open(self.wfb_config_filename, 'w') as configfile:
+            #parser.write(configfile)
 
         # Bring this card is down
         try:
