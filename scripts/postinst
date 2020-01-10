@@ -1,5 +1,5 @@
 #!/bin/sh
 
 # Default to ground mode
-systemctl enable wfb_bridge@ground
-systemctl restart wfb_bridge@ground
+systemctl enable wfb_bridge_ground
+systemctl enable wfb_bridge_air
