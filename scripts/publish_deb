@@ -1,0 +1,14 @@
+#!/bin/sh
+
+DEB=$1
+APIKEY=$2
+DIST=$3
+COMP=$4
+ARCH=$5
+VER=`cat build/version`
+
+cp ${DEB} .
+DEB=`basename ${DEB}`
+curl -T ${DEB} -uwebbbn:${APIKEY} "https://api.bintray.com/content/webbbn/openhd_test/wifibroadcast_bridge/${VER}/${DEB};deb_distribution=${DIST};deb_component=${COMP};deb_architecture=${ARCH}"
+curl -X POST -uwebbbn:${APIKEY} "https://api.bintray.com/content/webbbn/openhd_test/wifibroadcast_bridge/${VER}/publish" -d "{ \"discard\": \"false\" }"
+rm -f ${DEB}

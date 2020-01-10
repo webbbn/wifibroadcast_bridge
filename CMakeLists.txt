@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.9.3")
+set(VERSION "0.9.4")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -14,6 +14,7 @@ ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cc ${CMAKE_CURRENT_BINARY_DIR}/_version.cc
   COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/cmake/version.cmake
   )
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/version ${VERSION})
 
 # Add the local cmake directory to the modules path
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
