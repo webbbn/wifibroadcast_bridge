@@ -18,42 +18,42 @@ jobs:
     - name: compile-buster-amd64
       run: |
         docker run -v `pwd`:/mnt --rm debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster stable amd64
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster stable amd64
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
     - name: compile-buster-armhf
       run: |
         docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing armhf
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing armhf
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
     - name: compile-buster-arm64
       run: |
         docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing arm64
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing arm64
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
     - name: compile-stretch-armhf
       run: |
         docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/debian:stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} stretch testing armhf
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} stretch testing armhf
         mkdir -p deb/stretch
         sudo mv build/*.deb deb/stretch
         sudo rm -rf build
     - name: compile-eoan-amd64
       run: |
         docker run -v `pwd`:/mnt --rm ubuntu:eoan /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} eoan testing amd64
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} eoan testing amd64
         mkdir -p deb/eoan
         sudo mv build/*.deb deb/eoan
         sudo rm -rf build
     - name: compile-bionic-amd64
       run: |
         docker run -v `pwd`:/mnt --rm ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
-	scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing amd64
+        scripts/publish_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing amd64
         mkdir -p deb/bionic
         sudo mv build/*.deb deb/bionic
         sudo rm -rf build
