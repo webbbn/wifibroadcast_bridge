@@ -1,7 +1,5 @@
 #!/bin/sh
 
 # Default to ground mode
-systemctl enable /lib/systemd/system/ground.target
-systemctl enable /lib/systemd/system/air.target
 systemctl enable /lib/systemd/system/wfb_bridge_ground.service
 systemctl enable /lib/systemd/system/wfb_bridge_air.service

@@ -244,7 +244,7 @@ net.read_config(config_filename)
 # Configure any existing devices
 net.configure_interfaces()
 
-# Monitor for any network adapters getiting plugged in or unplugged
+# Monitor for any network adapters getting plugged in or unplugged
 monitor = udev.Monitor.from_netlink(udev_context)
 monitor.filter_by('net')
 for device in iter(monitor.poll, None):

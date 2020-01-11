@@ -1,15 +1,11 @@
 [Unit]
 Description=Start the wifibroadcast bridge in ground mode
-Conflicts=wfb_bridge_air.service
 BindsTo=ground.target
-After=ground.target
 
 [Service]
 Type=simple
 EnvironmentFile=/etc/default/wfb_bridge
-ExecStartPre=/bin/systemctl stop air.target
 ExecStart=/usr/bin/wifi_config /etc/default/wfb_bridge ground
-ExecStopPost=/bin/systemctl start air.target
 TimeoutStopSec=5s
 Restart=always
 RestartSec=5s
