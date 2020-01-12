@@ -68,21 +68,20 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
   bool ldpc = conf.get<uint8_t>("device-" + device_type + "ldpc", 0) ? true : false;
 
   // If this is the ground side, get the host and port to send status messages to.
-  std::string status_host;
-  uint16_t status_port = 0;
-  std::string packed_status_host;
-  uint16_t packed_status_port = 0;
+  std::shared_ptr<UDPDestination> udp_out;
+  std::shared_ptr<UDPDestination> packed_udp_out;
   if (mode == "ground") {
-    status_host = conf.get<std::string>("link-status_down.outhost", "");
-    status_port = conf.get<uint16_t>("link-status_down.outport", 0);
-    LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
-    packed_status_host = conf.get<std::string>("link-packed_status_down.outhost", "");
-    packed_status_port = conf.get<uint16_t>("link-packed_status_down.outport", 0);
-    LOG_INFO << "Sending packed status to udp://" << packed_status_host << ":" << packed_status_port;
+    udp_out.reset(new UDPDestination(conf.get<std::string>("link-status_down.outports", ""),
+				     std::shared_ptr<FECDecoder>()));
+    packed_udp_out.reset(new UDPDestination
+			 (conf.get<std::string>("link-packed_status_down.outports", ""),
+			  std::shared_ptr<FECDecoder>()));
   } else {
-    status_host = conf.get<std::string>("link-status_up.outhost", "");
-    status_port = conf.get<uint16_t>("link-status_up.outport", 0);
-    LOG_INFO << "Sending status to udp://" << status_host << ":" << status_port;
+    udp_out.reset(new UDPDestination(conf.get<std::string>("link-status_up.outports", ""),
+				     std::shared_ptr<FECDecoder>()));
+    packed_udp_out.reset(new UDPDestination
+			 (conf.get<std::string>("link-packed_status_up.outports", ""),
+			  std::shared_ptr<FECDecoder>()));
   }
 
   // Create the the threads for receiving packets from UDP sockets
@@ -158,15 +157,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	// Create the stats logging thread.
 	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
 	auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-		      &outqueue, msg, status_host, status_port,
-		      packed_status_host, packed_status_port]() {
-	  std::shared_ptr<UDPDestination> udp_out
-	  (new UDPDestination(status_port, status_host, std::shared_ptr<FECDecoder>()));
-	  std::shared_ptr<UDPDestination> packed_udp_out;
-	  if ((packed_status_host != "") && (packed_status_port != 0)) {
-	    packed_udp_out.reset(new UDPDestination(packed_status_port, packed_status_host,
-						    std::shared_ptr<FECDecoder>()));
-	  }
+		      &outqueue, msg, udp_out, packed_udp_out]() {
 	  log_thread(trans_stats, trans_stats_other, syslog_period, status_period, outqueue, msg,
 		     udp_out, packed_udp_out);
 	};

@@ -2,6 +2,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <boost/lexical_cast.hpp>
+
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
+
 #include <wfb_bridge.hh>
 #include <udp_send.hh>
 #include <logging.hh>
@@ -24,36 +29,49 @@ std::string hostname_to_ip(const std::string &hostname) {
   return "";
 }
 
-UDPDestination::UDPDestination(uint16_t port, const std::string &hostname,
-			       std::shared_ptr<FECDecoder> enc) :
-  fec(enc), fdout(0), is_status(false) {
+UDPDestination::UDPDestination(const std::string &outports_str, std::shared_ptr<FECDecoder> enc,
+			       bool is_status) :
+  m_fec(enc), m_is_status(is_status) {
 
-  // Initialize the UDP output socket.
-  memset(&s, '\0', sizeof(struct sockaddr_in));
-  s.sin_family = AF_INET;
-  s.sin_port = (in_port_t)htons(port);
+  // Get the remote hostname/ip(s) and port(s)
+  std::vector<std::string> outports;
+  boost::algorithm::split(outports, outports_str, boost::is_any_of(","));
+  m_socks.resize(outports.size());
 
-  // Lookup the IP address from the hostname
-  std::string ip;
-  if (hostname != "") {
-    ip = hostname_to_ip(hostname);
+  // Split out the hostnames and ports
+  for (size_t i = 0; i < outports.size(); ++i) {
+    std::vector<std::string> host_port;
+    boost::algorithm::split(host_port, outports[i], boost::is_any_of(":"));
+    if (host_port.size() != 2) {
+      LOG_CRITICAL << "Invalid host:port specified (" << outports[i] << ")";
+      return;
+    }
+
+    // Initialize the UDP output socket.
+    const std::string &hostname = host_port[0];
+    struct sockaddr_in &s = m_socks[i];
+    uint16_t port = boost::lexical_cast<uint16_t>(host_port[1]);
+    memset(&s, '\0', sizeof(struct sockaddr_in));
+    s.sin_family = AF_INET;
+    s.sin_port = (in_port_t)htons(port);
+
+    // Lookup the IP address from the hostname
+    std::string ip;
+    if (hostname != "") {
+      ip = hostname_to_ip(hostname);
+      s.sin_addr.s_addr = inet_addr(ip.c_str());
+    } else {
+      s.sin_addr.s_addr = INADDR_ANY;
+    }
     s.sin_addr.s_addr = inet_addr(ip.c_str());
-  } else {
-    s.sin_addr.s_addr = INADDR_ANY;
-  }
-  s.sin_addr.s_addr = inet_addr(ip.c_str());
-}
-
-UDPDestination::UDPDestination(const std::string &filename, std::shared_ptr<FECDecoder> enc) :
-  fec(enc) {
-  // Try to open the output file
-  fdout = open(filename.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  if (fdout < 0) {
-    LOG_CRITICAL << "Error opening an output file: " << filename;
-    exit(EXIT_FAILURE);
   }
 }
 
+void UDPDestination::send(int send_sock, const uint8_t* buf, size_t len) {
+  for (const auto &s : m_socks) {
+    sendto(send_sock, buf, len, 0, (struct sockaddr *)&(s), sizeof(struct sockaddr_in));
+  }
+}
 
 // Retrieve messages from incoming raw socket queue and send the UDP packets.
 void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
@@ -84,25 +102,18 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
     }
 
     // Add this block to the FEC decoder.
-    std::shared_ptr<FECDecoder> fec = udp_out[msg->port]->fec;
+    std::shared_ptr<FECDecoder> fec = udp_out[msg->port]->fec();
     fec->add_block(msg->data.data(), msg->data.size());
 
     // Output any packets that are finished in the decoder.
     for (std::shared_ptr<FECBlock> block = fec->get_block(); block; block = fec->get_block()) {
       if (block->data_length() > 0) {
 	if (udp_out[msg->port]) {
-	  if (udp_out[msg->port]->fdout == 0) {
-	    sendto(send_sock, block->data(), block->data_length(), 0,
-		   (struct sockaddr *)&(udp_out[msg->port]->s), sizeof(struct sockaddr_in));
-	  } else if(udp_out[msg->port]->fdout > 0) {
-	    if (write(udp_out[msg->port]->fdout, block->data(), block->data_length()) <= 0) {
-	      ++write_errors;
-	    }
-	  }
+	  udp_out[msg->port]->send(send_sock, block->data(), block->data_length());
 	}
 
 	// If this is a link status message, parse it and update the stats.
-	if (udp_out[msg->port]->is_status) {
+	if (udp_out[msg->port]->is_status()) {
 	  std::string s(block->data(), block->data() + block->data_length());
 	  stats_other.update(s);
 	}
@@ -110,7 +121,7 @@ void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
     }
 
     // Accumulate the stats
-    stats.add(fec->stats(), udp_out[msg->port]->prev_stats);
-    udp_out[msg->port]->prev_stats = fec->stats();
+    stats.add(fec->stats(), udp_out[msg->port]->prev_stats());
+    udp_out[msg->port]->prev_stats(fec->stats());
   }
 }

@@ -67,8 +67,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 
       // Send the local status out the UDP port
       std::string outmsg = stats.serialize();
-      sendto(send_sock, outmsg.c_str(), outmsg.length(), 0,
-	     (struct sockaddr *)&(udp_out->s), sizeof(struct sockaddr_in));
+      udp_out->send(send_sock, reinterpret_cast<const uint8_t*>(outmsg.c_str()), outmsg.length());
 
       // Create the packed status message and send it.
       if (packed_udp_out) {
@@ -101,8 +100,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.adapter[0].type = 1;
 	rxs.adapter[0].signal_good = (rssi > -100);
 
-	sendto(send_sock, reinterpret_cast<uint8_t*>(&rxs), sizeof(rxs), 0,
-	       (struct sockaddr *)&(packed_udp_out->s), sizeof(struct sockaddr_in));
+	udp_out->send(send_sock, reinterpret_cast<uint8_t*>(&rxs), sizeof(rxs));
 	pps = s;
       }
 

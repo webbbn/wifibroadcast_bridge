@@ -15,15 +15,37 @@
 #include <shared_queue.hh>
 #include <fec.hh>
 
-struct UDPDestination {
-  UDPDestination(uint16_t port, const std::string &hostname, std::shared_ptr<FECDecoder> enc);
-  UDPDestination(const std::string &filename, std::shared_ptr<FECDecoder> enc);
+class UDPDestination {
+public:
+  UDPDestination(const std::string &outports_str, std::shared_ptr<FECDecoder> enc,
+		 bool is_status = false);
 
-  struct sockaddr_in s;
-  int fdout;
-  FECDecoderStats prev_stats;
-  std::shared_ptr<FECDecoder> fec;
-  bool is_status;
+  void send(int send_sock, const uint8_t* buf, size_t len);
+
+  void is_status(bool v) {
+    m_is_status = v;
+  }
+  bool is_status() const {
+    return m_is_status;
+  }
+
+  std::shared_ptr<FECDecoder> fec() {
+    return m_fec;
+  }
+
+  const FECDecoderStats &prev_stats() const {
+    return m_prev_stats;
+  }
+
+  void prev_stats(const FECDecoderStats &stats) {
+    m_prev_stats = stats;
+  }
+
+private:
+  std::vector<struct sockaddr_in> m_socks;
+  FECDecoderStats m_prev_stats;
+  std::shared_ptr<FECDecoder> m_fec;
+  bool m_is_status;
 };
 
 std::string hostname_to_ip(const std::string &hostname);

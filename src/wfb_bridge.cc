@@ -167,23 +167,12 @@ int main(int argc, const char** argv) {
       // Get the name.
       std::string name = v.second.get<std::string>("name", "");
 
-      // Get the UDP port number or output filename (required).
-      uint16_t outport = v.second.get<uint16_t>("outport", 0);
-      std::string outfile;
-      if (outport == 0) {
-	outfile = v.second.get<std::string>("outfile", "");
-	if (outfile == "") {
-	  LOG_CRITICAL << "No outport or outfile specified for " << name;
-	  return EXIT_FAILURE;
-	}
-      }
-
-      // Get the remote hostname/ip (optional)
-      std::string hostname = v.second.get<std::string>("outhost", "127.0.0.1");
+      // Get the remote hostname/ip(s) and port(s)
+      std::string outports = v.second.get<std::string>("outports");
 
       // Get the port number (required).
       uint8_t port = v.second.get<uint16_t>("port", 0);
-      if (port > 15) {
+      if (port > 64) {
 	LOG_CRITICAL << "Invalid port specified for " << name << "  (" << port << ")";
 	return EXIT_FAILURE;
       }
@@ -193,12 +182,10 @@ int main(int argc, const char** argv) {
 
       // Create the FEC decoder if requested.
       std::shared_ptr<FECDecoder> dec(new FECDecoder());
-      if ((port > 0) && (outport > 0)) {
-	udp_out[port].reset(new UDPDestination(outport, hostname, dec));
+      if (port > 0) {
+	udp_out[port].reset(new UDPDestination(outports, dec));
 	// Is this the port that will receive status from the other side?
-	udp_out[port]->is_status = ((group == "status_down") || (group == "status_up"));
-      } else if (port > 0) {
-	udp_out[port].reset(new UDPDestination(outfile, dec));
+	udp_out[port]->is_status((group == "status_down") || (group == "status_up"));
       }
     }
   }
