@@ -16,7 +16,7 @@ jobs:
     - name: compile-buster-amd64
       run: |
         docker run -v `pwd`:/mnt --rm debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster stable amd64
+        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing amd64
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
