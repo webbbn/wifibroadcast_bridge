@@ -1,6 +1,7 @@
 [Unit]
 Description=Start the wifibroadcast bridge in air mode
-BindsTo=air.target
+Conflicts=wfb_bridge_ground.service
+After=wfb_bridge_air.service
 
 [Service]
 Type=simple
@@ -11,4 +12,4 @@ Restart=always
 RestartSec=5s
 
 [Install]
-WantedBy=air.target
+WantedBy=multi-user.target

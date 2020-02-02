@@ -101,8 +101,6 @@ install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
 # Add rules to install the services files
 install(FILES services/wfb_bridge_ground.service DESTINATION lib/systemd/system COMPONENT configuration)
 install(FILES services/wfb_bridge_air.service DESTINATION lib/systemd/system COMPONENT configuration)
-install(FILES services/air.target DESTINATION lib/systemd/system COMPONENT configuration)
-install(FILES services/ground.target DESTINATION lib/systemd/system COMPONENT configuration)
 
 # Add rules to install the NetworkManager wifi ignore list
 install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)

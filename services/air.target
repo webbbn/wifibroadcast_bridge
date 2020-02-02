@@ -1,5 +1,0 @@
-[Unit]
-Description=Controls services required for an OpenHD Air unit
-
-[Install]
-WantedBy=multi-user.target
