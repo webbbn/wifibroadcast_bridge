@@ -34,6 +34,13 @@ jobs:
         mkdir -p deb/buster
         sudo mv build/*.deb deb/buster
         sudo rm -rf build
+    - name: compile-bionic-arm64
+      run: |
+        docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
+        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} bionic testing arm64
+        mkdir -p deb/bionic
+        sudo mv build/*.deb deb/bionic
+        sudo rm -rf build
     - name: compile-stretch-armhf
       run: |
         docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/debian:stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
