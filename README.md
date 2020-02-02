@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/webbbn/wifibroadcast_bridge.svg?branch=master)](https://travis-ci.com/webbbn/wifibroadcast_bridge)   [![Actions Status](https://github.com/webbbn/wifibroadcast_bridge/workflows/build-debs/badge.svg) [ ![Download](https://api.bintray.com/packages/webbbn/openhd_test/wifibroadcast_bridge/images/download.svg) ](https://bintray.com/webbbn/openhd_test/wifibroadcast_bridge/_latestVersion)
+[![Build Status](https://travis-ci.com/webbbn/wifibroadcast_bridge.svg?branch=master)](https://travis-ci.com/webbbn/wifibroadcast_bridge)   [![Actions Status](https://github.com/OpenHD/wifibroadcast_bridge/workflows/build-debs/badge.svg) [ ![Download](https://api.bintray.com/packages/webbbn/openhd_test/wifibroadcast_bridge/images/download.svg) ](https://bintray.com/webbbn/openhd_test/wifibroadcast_bridge/_latestVersion)
 
 # wifibroadcast_bridge
 A UDP bridge over a wifibroadcast link
