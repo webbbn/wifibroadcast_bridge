@@ -48,12 +48,6 @@ jobs:
         mkdir -p deb/stretch
         sudo mv build/*.deb deb/stretch
         sudo rm -rf build
-    - name: compile-eoan-amd64
-      run: |
-        docker run -v `pwd`:/mnt --rm ubuntu:eoan /bin/bash -c "cd /mnt; scripts/mkdeb"
-        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} eoan testing amd64
-        mkdir -p deb/eoan
-        sudo mv build/*.deb deb/eoan
         sudo rm -rf build
     - name: compile-bionic-amd64
       run: |
@@ -61,6 +55,20 @@ jobs:
         scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} buster testing amd64
         mkdir -p deb/bionic
         sudo mv build/*.deb deb/bionic
+        sudo rm -rf build
+    - name: compile-eoan-amd64
+      run: |
+        docker run -v `pwd`:/mnt --rm ubuntu:eoan /bin/bash -c "cd /mnt; scripts/mkdeb"
+        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} eoan testing amd64
+        mkdir -p deb/eoan
+        sudo mv build/*.deb deb/eoan
+        sudo rm -rf build
+    - name: compile-focal-amd64
+      run: |
+        docker run -v `pwd`:/mnt --rm ubuntu:focal /bin/bash -c "cd /mnt; scripts/mkdeb"
+        scripts/upload_deb build/*.deb ${{ secrets.BINTRAY_API_KEY }} focal testing amd64
+        mkdir -p deb/vocal
+        sudo mv build/*.deb deb/focal
         sudo rm -rf build
     - name: Upload artifact
       uses: actions/upload-artifact@v1.0.0
