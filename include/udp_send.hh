@@ -9,11 +9,11 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#include <transfer_stats.hh>
-#include <raw_socket.hh>
+#include <wifibroadcast/transfer_stats.hh>
+#include <wifibroadcast/raw_socket.hh>
 #include <wfb_bridge.hh>
 #include <shared_queue.hh>
-#include <fec.hh>
+#include <wifibroadcast/fec.hh>
 
 class UDPDestination {
 public:

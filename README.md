@@ -36,6 +36,12 @@ cmake -DCMAKE_INSTALL_PREFIX=/ ..
 sudo make install
 ~~~
 
+### Activate system services (after intalling in root)
+
+~~~
+sudo ../scripts/postinst
+~~~
+
 ## Create an installable .deb file
 
 ~~~

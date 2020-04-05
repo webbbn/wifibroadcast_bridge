@@ -4,7 +4,7 @@
 #include <boost/program_options.hpp>
 
 #include <logging.hh>
-#include <fec.hh>
+#include <wifibroadcast/fec.hh>
 
 namespace po=boost::program_options;
 

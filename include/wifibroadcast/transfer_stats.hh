@@ -6,7 +6,7 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <fec.hh>
+#include <wifibroadcast/fec.hh>
 
 struct transfer_stats_t {
   transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
@@ -45,7 +45,7 @@ public:
   void add_latency(uint8_t);
   transfer_stats_t get_stats();
 
-  void update(const std::string &s);
+  bool update(const std::string &s);
 
   void timeout();
 

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.9.12")
+set(VERSION "0.9.13")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -68,7 +68,8 @@ add_library(wifibroadcast
   src/fec.c
   src/fec.cc
   src/logging.cc
-  src/radiotap/radiotap.c)
+  src/radiotap/radiotap.c
+  src/transfer_stats.cc)
 target_link_libraries(wifibroadcast ${Boost_LIBRARIES} ${PCAP_LIBRARY})
 install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
 
@@ -115,9 +116,10 @@ install(DIRECTORY lib/firmware/ath9k_htc DESTINATION lib/firmware COMPONENT conf
 
 # Install the include files
 install(FILES
-  include/fec.h
-  include/fec.hh
-  include/raw_socket.hh
+  include/wifibroadcast/fec.h
+  include/wifibroadcast/fec.hh
+  include/wifibroadcast/raw_socket.hh
+  include/wifibroadcast/transfer_stats.hh
   DESTINATION ${IncludeDir}/wifibroadcast COMPONENT development)
 
 # Add uninstall target

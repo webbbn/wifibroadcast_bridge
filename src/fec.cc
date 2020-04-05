@@ -3,7 +3,7 @@
 
 #include <logging.hh>
 
-#include <fec.hh>
+#include <wifibroadcast/fec.hh>
 
 /*******************************************************************************
  * FECEncoder

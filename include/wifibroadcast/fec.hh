@@ -10,7 +10,7 @@
 #include <set>
 #include <queue>
 
-#include <fec.h>
+#include <wifibroadcast/fec.h>
 
 typedef enum {
   FEC_PARTIAL,

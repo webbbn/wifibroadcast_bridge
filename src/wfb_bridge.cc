@@ -35,9 +35,9 @@
 
 #include <logging.hh>
 #include <shared_queue.hh>
-#include <raw_socket.hh>
-#include <fec.hh>
-#include <transfer_stats.hh>
+#include <wifibroadcast/raw_socket.hh>
+#include <wifibroadcast/fec.hh>
+#include <wifibroadcast/transfer_stats.hh>
 #include <udp_send.hh>
 #include <udp_receive.hh>
 #include <wfb_bridge.hh>

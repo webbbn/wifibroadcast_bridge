@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <udp_send.hh>
-#include <transfer_stats.hh>
+#include <wifibroadcast/transfer_stats.hh>
 
 struct WifiOptions {
   WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18, bool m = false,

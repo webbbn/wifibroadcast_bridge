@@ -5,7 +5,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
 
-#include <transfer_stats.hh>
+#include <wifibroadcast/transfer_stats.hh>
 
 
 const float prev_weight = 0.02;
@@ -85,28 +85,43 @@ transfer_stats_t TransferStats::get_stats() {
   return stats;
 }
 
-void TransferStats::update(const std::string &s) {
+template <typename tmpl__T>
+bool parse_next(tmpl__T &v,
+		boost::tokenizer<boost::char_separator<char> >::iterator &i,
+		const boost::tokenizer<boost::char_separator<char> >::iterator end) {
+  if (i == end) {
+    return false;
+  }
+  try {
+    v = boost::lexical_cast<tmpl__T>(*i++);
+  } catch(boost::bad_lexical_cast &) {
+    return false;
+  }
+  return true;
+}
+
+bool TransferStats::update(const std::string &s) {
   std::lock_guard<std::mutex> lock(m_mutex);
   boost::char_separator<char> sep(",");
   boost::tokenizer<boost::char_separator<char> > tok(s, sep);
   boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
-  m_name = boost::lexical_cast<std::string>(*i++);
-  m_seq = boost::lexical_cast<uint32_t>(*i++);
-  m_blocks = boost::lexical_cast<uint32_t>(*i++);
-  m_bytes = boost::lexical_cast<uint32_t>(*i++);
-  m_block_errors = boost::lexical_cast<uint32_t>(*i++);
-  m_seq_errors = boost::lexical_cast<uint32_t>(*i++);
-  m_send_bytes = boost::lexical_cast<uint32_t>(*i++);
-  m_send_blocks = boost::lexical_cast<uint32_t>(*i++);
-  m_inject_errors = boost::lexical_cast<uint32_t>(*i++);
-  m_queue_size = boost::lexical_cast<float>(*i++);
-  m_enc_time = boost::lexical_cast<float>(*i++);
-  m_send_time = boost::lexical_cast<float>(*i++);
-  m_pkt_time = boost::lexical_cast<float>(*i++);
-  m_latency = boost::lexical_cast<float>(*i++);
-  m_rssi = boost::lexical_cast<float>(*i++);
+  return (parse_next(m_name, i, tok.end()) &&
+	  parse_next(m_seq, i, tok.end()) &&
+	  parse_next(m_blocks, i, tok.end()) &&
+	  parse_next(m_bytes, i, tok.end()) &&
+	  parse_next(m_block_errors, i, tok.end()) &&
+	  parse_next(m_seq_errors, i, tok.end()) &&
+	  parse_next(m_send_bytes, i, tok.end()) &&
+	  parse_next(m_send_blocks, i, tok.end()) &&
+	  parse_next(m_inject_errors, i, tok.end()) &&
+	  parse_next(m_queue_size, i, tok.end()) &&
+	  parse_next(m_enc_time, i, tok.end()) &&
+	  parse_next(m_send_time, i, tok.end()) &&
+	  parse_next(m_pkt_time, i, tok.end()) &&
+	  parse_next(m_latency, i, tok.end()) &&
+	  parse_next(m_rssi, i, tok.end()));
 }
-
+  
 std::string TransferStats::serialize() {
   std::lock_guard<std::mutex> lock(m_mutex);
   std::stringstream ss;

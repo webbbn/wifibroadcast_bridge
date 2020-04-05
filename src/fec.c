@@ -48,7 +48,7 @@
 #include <string.h>
 
 #include <assert.h>
-#include "fec.h"
+#include "wifibroadcast/fec.h"
 
 /*
  * stuff used for testing purposes only
