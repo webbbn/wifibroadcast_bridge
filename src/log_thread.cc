@@ -1,4 +1,8 @@
 
+#include <net/if.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+
 #include <iomanip>
 #include <thread>
 
