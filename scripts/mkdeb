@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# Ensure that dpkg doesn't prompt for input
+export DEBIAN_FRONTEND=noninteractive
+
 # Install required packages
 apt-get update
 apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential

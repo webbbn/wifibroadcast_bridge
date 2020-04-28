@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.9.16")
+set(VERSION "0.9.17")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -37,6 +37,7 @@ find_package(Boost REQUIRED COMPONENTS
   program_options
   system
   filesystem
+  log_setup
   log)
 include_directories(${Boost_INCLUDE_DIR})
 
