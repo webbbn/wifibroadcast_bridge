@@ -177,9 +177,6 @@ int main(int argc, const char** argv) {
 	return EXIT_FAILURE;
       }
 
-      // Get the link type
-      std::string type = v.second.get<std::string>("type", "data");
-
       // Create the FEC decoder if requested.
       std::shared_ptr<FECDecoder> dec(new FECDecoder());
       if (port > 0) {

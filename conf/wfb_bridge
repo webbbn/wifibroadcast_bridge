@@ -48,7 +48,7 @@
 # 31        260   64-QAM
 
 [global]
-loglevel = critical
+loglevel = debug
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5

@@ -109,7 +109,7 @@ static uint8_t radiotap_header_mcs[] = {
 };
 #endif
 
-static uint8_t u8aIeeeHeader_data_short[] = {
+static uint8_t ieee_header_data_short[] = {
   0x08, 0x01, 0x00, 0x00, // frame control field (2bytes), duration (2 bytes)
   0xff // port =  1st byte of IEEE802.11 RA (mac) must be something odd
   // (wifi hardware determines broadcast/multicast through odd/even check)
@@ -124,7 +124,7 @@ static uint8_t ieee_header_data[] = {
   0x00, 0x00 // IEEE802.11 seqnum, (will be overwritten later by Atheros firmware/wifi chip)
 };
 
-static uint8_t u8aIeeeHeader_rts[] = {
+static uint8_t ieee_header_rts[] = {
   0xb4, 0x01, 0x00, 0x00, // frame control field (2 bytes), duration (2 bytes)
   0xff, //  port = 1st byte of IEEE802.11 RA (mac) must be something odd
   // (wifi hardware determines broadcast/multicast through odd/even check)
@@ -266,7 +266,7 @@ bool RawSendSocket::add_device(const std::string &device, bool silent) {
 bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
 			 uint8_t datarate, bool mcs, bool stbc, bool ldpc) {
 
-  // Construct the radiotap header at the nead of the packet.
+  // Construct the radiotap header at the head of the packet.
   size_t rt_hlen = 0;
   if (mcs) {
     rt_hlen = sizeof(radiotap_header_mcs);
@@ -317,8 +317,21 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
   }
 
   // Copy the 802.11 header onto the head of the packet.
-  size_t ieee_hlen = sizeof(ieee_header_data);
-  memcpy(m_send_buf.data() + rt_hlen, ieee_header_data, ieee_hlen);
+  size_t ieee_hlen;
+  switch (type) {
+  case SHORT_DATA_LINK:
+    ieee_hlen = sizeof(ieee_header_data_short);
+    memcpy(m_send_buf.data() + rt_hlen, ieee_header_data_short, ieee_hlen);
+    break;
+  case RTS_DATA_LINK:
+    ieee_hlen = sizeof(ieee_header_rts);
+    memcpy(m_send_buf.data() + rt_hlen, ieee_header_rts, ieee_hlen);
+    break;
+  default:
+    ieee_hlen = sizeof(ieee_header_data);
+    memcpy(m_send_buf.data() + rt_hlen, ieee_header_data, ieee_hlen);
+    break;
+  }
 
   // Set the port in the header
   m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
