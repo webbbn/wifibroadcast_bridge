@@ -46,6 +46,8 @@
 namespace po=boost::program_options;
 namespace pt=boost::property_tree;
 
+double last_packet_time = 0;
+
 
 int main(int argc, const char** argv) {
 
@@ -69,7 +71,7 @@ int main(int argc, const char** argv) {
     ("conf_file", po::value<std::string>(&conf_file),
      "the path to the configuration file used for configuring ports")
     ("mode", po::value<std::string>(&mode),
-     "the mode (air|ground|")
+     "the mode (air|ground)")
     ("devices", po::value<std::vector<std::string> >(&devices),
      "the wifi devices to connect to (interface:type interface:type ...)")
     ;
@@ -232,13 +234,15 @@ int main(int argc, const char** argv) {
 	while(!terminate) {
 	  std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
 	  if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
-	    // Did we timeout?
+
+	    // Did we stop receiving packets?
 	    if (msg->data.empty()) {
 	      trans_stats.timeout();
 	      trans_stats_other.timeout();
 	    } else {
-	      inqueue.push(msg);
-	    }
+              inqueue.push(msg);
+              last_packet_time = cur_time();
+            }
 	  } else {
 	    // Error return, which likely means the wifi card went away
 	    terminate = true;

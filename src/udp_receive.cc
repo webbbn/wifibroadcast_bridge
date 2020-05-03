@@ -7,6 +7,8 @@
 #include <udp_send.hh>
 #include <udp_receive.hh>
 
+extern double last_packet_time;
+
 int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t timeout_us) {
 
   // Try to open a UDP socket.
@@ -151,6 +153,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       opts.stbc = stbc;
       opts.ldpc = ldpc;
 
+      // See if this link has a rate target specified.
+      uint16_t rate_target = v.second.get<uint16_t>("rate_target", 0);
+
       // Create the logging thread if this is a status down channel.
       if ((group == "link-status_down") || (group == "link-status_up")) {
 
@@ -166,7 +171,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       } else {
 
 	// Try to open the UDP socket.
-	uint32_t timeout_us = do_fec ? 1000 : 0; // 1ms timeout for FEC links to support flushing
+        // 1ms timeout for FEC links to support flushing
+        // Update rate target every 100 uS
+	uint32_t timeout_us = (rate_target > 0) ? 100 : (do_fec ? 1000 : 0);
 	int udp_sock = open_udp_socket_for_rx(inport, hostname, timeout_us);
 	if (udp_sock < 0) {
 	  LOG_CRITICAL << "Error opening the UDP socket for " << name << "  ("
@@ -175,30 +182,59 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	}
 
 	// Create the receive thread for this socket
-	auto uth = [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport]() {
-	  bool flushed = false;
-	  uint32_t cntr = 0;
-	  while (1) {
-	    std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
-	    ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
-	    if (count < 0) {
-	      if (!flushed) {
-		// Indicate a flush by putting an empty message on the queue
-		count = 0;
-		flushed = true;
-	      } else {
-		continue;
-	      }
-	    } else {
-	      flushed = false;
-	    }
-	    if (count > 0) {
-	      msg->msg.resize(count);
-	      outqueue.push(msg);
-	    }
-	  }
-	};
-	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
+	auto uth =
+          [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport,
+           do_fec, rate_target]() {
+            bool flushed = true;
+            double last_recv_time = 0;
+            bool in_gap = false;
+            double last_send_time = 0;
+            double send_rate = static_cast<double>(rate_target) / 1000.0;
+            std::shared_ptr<Message> send_msg;
+
+            while (1) {
+
+              // Receive the next message.
+              std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+              ssize_t count = recv(udp_sock, msg->msg.data(), blocksize, 0);
+              double t = cur_time();
+
+              // Did we receive a message to send?
+              if (count > 0) {
+                last_recv_time = t;
+                msg->msg.resize(count);
+                send_msg = msg;
+              }
+
+              // Do we have a messsage to send?
+              if (send_msg) {
+
+                // See if we're in a receive gap.
+                double tdiff = t - last_packet_time;
+                if (tdiff > 200e-6) {
+                  in_gap = true;
+                }
+
+                // Queue the message for sending if we can
+                double stdiff = t - last_send_time;
+                if (in_gap || (stdiff > send_rate)) {
+                  outqueue.push(send_msg);
+                  flushed = false;
+                  last_send_time = t;
+                  send_msg.reset();
+                }
+              }
+
+              // Do we need to flush the FEC encoder?
+              if (!flushed && (t - last_send_time) > 1000.0) {
+                LOG_DEBUG << "Flush";
+                msg->msg.resize(0);
+                outqueue.push(msg);
+                flushed = true;
+              }
+            }
+          };
+        thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
       }
     }    
   }

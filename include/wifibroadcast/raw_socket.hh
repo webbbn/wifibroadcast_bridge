@@ -28,6 +28,7 @@ struct monitor_message_t {
   int8_t rssi;
   uint16_t lock_quality;
   uint16_t latency_ms;
+  double recv_time;
   std::vector<uint8_t> antennas;
   std::vector<int8_t> rssis;
 };

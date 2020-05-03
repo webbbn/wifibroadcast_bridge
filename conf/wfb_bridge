@@ -48,7 +48,7 @@
 # 31        260   64-QAM
 
 [global]
-loglevel = critical
+loglevel = debug
 sysloglevel = info
 sysloghost = localhost
 syslogperiod = 5
@@ -88,7 +88,7 @@ blocksize = 1400
 blocks = 8
 fec = 4
 type = data
-priority = 1
+priority = 2
 datarate = 3
 
 [link-video2]
@@ -101,7 +101,7 @@ blocksize = 1500
 blocks = 8
 fec = 4
 type = data
-priority = 1
+priority = 2
 datarate = 3
 
 [link-telemetry]
@@ -123,6 +123,7 @@ outports = 127.0.0.1:14651
 type = rts
 priority = 1
 datarate = 0
+rate_target = 50
 
 [link-ipup]
 name = IP Forward Uplink
@@ -131,7 +132,7 @@ port = 4
 inport = 8345
 outports = 127.0.0.1:8345
 type = data
-priority = 1
+priority = 5
 datarate = 1
 
 [link-ipdown]
@@ -141,7 +142,7 @@ port = 5
 inport = 8346
 outports = 127.0.0.1:8346
 type = data
-priority = 1
+priority = 5
 datarate = 1
 
 [link-video_no_fec]
@@ -151,7 +152,7 @@ port = 6
 inport = 5700
 outports = 127.0.0.1:5700
 type = data
-priority = 1
+priority = 2
 datarate = 4
 
 [link-status_down]

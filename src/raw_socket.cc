@@ -91,24 +91,6 @@ struct radiotap_header_mcs {
   uint8_t mcs_rate;
 } __attribute__((__packed__));
 
-#if 0
-static uint8_t radiotap_header[] = {
-  0x00, 0x00, // Radiotap version
-  0x0b, 0x00, // Radiotap header length
-  0x04, 0x80, 0x00, 0x00, // Radiotap present flags (rate (bit 2) + tx flags (bit 15))
-  0x16, // Datarate
-  0x08, 0x00 // RADIOTAP_F_TX_NOACK
-};
-
-static uint8_t radiotap_header_mcs[] = {
-  0x00, 0x00, // Radiotap version (0)
-  0x0d, 0x00, // Radiotap header length
-  0x00, 0x80, 0x08, 0x00, // Radiotap present flags (tx flags (bit 15) + mcs flags (bit 19))
-  0x08, 0x00, // RADIOTAP_F_TX_NOACK
-  0x00, 0x00, 0x00 // MCS: bitmap, flags, mcs_index
-};
-#endif
-
 static uint8_t ieee_header_data_short[] = {
   0x08, 0x01, 0x00, 0x00, // frame control field (2bytes), duration (2 bytes)
   0xff // port =  1st byte of IEEE802.11 RA (mac) must be something odd
@@ -330,15 +312,16 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
   default:
     ieee_hlen = sizeof(ieee_header_data);
     memcpy(m_send_buf.data() + rt_hlen, ieee_header_data, ieee_hlen);
+
+    // Add the timestamp to the header of data packets
+    uint8_t send_time = static_cast<uint8_t>(cur_milliseconds() % 256);
+    m_send_buf[rt_hlen + 5] = send_time;
+
     break;
   }
 
   // Set the port in the header
   m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
-
-  // Add the timestamp to the header.
-  uint8_t send_time = static_cast<uint8_t>(cur_milliseconds() % 256);
-  m_send_buf[rt_hlen + 5] = send_time;
 
   // Copy the data into the buffer.
   memcpy(m_send_buf.data() + rt_hlen + ieee_hlen, msg, msglen);
@@ -448,11 +431,14 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
   // Extract the port out of the ieee header
   msg.port = (pcap_packet_data[4] >> 4);
 
-  // Extract the time stamp out of the header.
-  uint32_t send_time = pcap_packet_data[5];
+  // Extract the time stamp and queue size out of the header of data packets
   uint32_t cur_time = cur_milliseconds();
-  msg.latency_ms = (send_time < cur_time) ? (cur_time - send_time) :
-    (cur_time + 256 - send_time);
+  if (m_n80211HeaderLength > 5) {
+    uint32_t send_time = pcap_packet_data[5];
+    msg.latency_ms = (send_time < cur_time) ? (cur_time - send_time) :
+      (cur_time + 256 - send_time);
+  }
+  msg.recv_time = cur_time;
 
   // Skip past the radiotap header.
   pcap_packet_data -= rt_header_len;
