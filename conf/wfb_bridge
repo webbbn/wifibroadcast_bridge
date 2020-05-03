@@ -97,7 +97,7 @@ direction = down
 port = 10
 inport = 5601
 outports = 127.0.0.1:5601
-blocksize = 1500
+blocksize = 1400
 blocks = 8
 fec = 4
 type = data
@@ -112,6 +112,9 @@ inport = 14650
 outports = 127.0.0.1:14650
 type = data
 priority = 3
+blocksize = 1400
+blocks = 1
+fec = 1
 datarate = 0
 
 [link-rc]
