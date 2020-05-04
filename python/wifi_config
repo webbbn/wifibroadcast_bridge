@@ -14,12 +14,15 @@ import subprocess as sp
 # [driver][model#] -> module name
 module_name_mappings = {
     "rtl8812au": {
-        "", "rtl8812au"
+        "": "rtl8812au"
     },
     "rtl88xxau": {
         "": "rtl8812au"
     },
     "88XXau": {
+        "": "rtl8812au"
+    },
+    "rtl88XXau": {
         "": "rtl8812au"
     },
     "ath9k_htc": {
