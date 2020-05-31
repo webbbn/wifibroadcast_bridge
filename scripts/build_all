@@ -1,59 +1,30 @@
 #!/bin/bash
 
+# Ensure that the script is run as root / sudo
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
+
+# Clean out the old deb files
 rm -rf debs
 
-API_KEY=`cat ~/API_KEY`
+# Process each distro
+for DISTRO in debian-stretch debian-buster ubuntu-bionic ubuntu-focal; do
+    mkdir -p debs/${DISTRO}
 
+    # Build the docker images for this distro
+    for CPU in amd64 armhf arm64; do
+        docker build -t wfb-bridge-builder-${CPU}-${DISTRO} -f Dockerfile/${CPU}-${DISTRO} Dockerfile
+    done
 
-mkdir -p debs/stretch
-
-# x64-stretch
-docker run -v `pwd`:/mnt --rm debian:stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY stretch testing amd64
-mv build/*.deb debs/stretch
-
-# armhf-stretch
-docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/debian:stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY stretch testing armhf
-mv build/*.deb debs/stretch
-
-# arm64-stretch
-docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:stretch /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY stretch testing arm64
-mv build/*.deb debs/stretch
-
-
-mkdir debs/buster
-
-# x64-buster
-docker run -v `pwd`:/mnt --rm debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY buster testing amd64
-mv build/*.deb debs/buster
-
-# armhf-buster
-docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY buster testing armhf
-mv build/*.deb debs/buster
-
-# arm64-buster
-docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/debian:buster /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY buster testing arm64
-mv build/*.deb debs/buster
-
-
-mkdir debs/bionic
-
-# x64-bionic
-docker run -v `pwd`:/mnt --rm ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY bionic testing amd64
-mv build/*.deb debs/bionic
-
-# armhf-bionic
-docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt --rm arm32v7/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY bionic testing armhf
-mv build/*.deb debs/bionic
-
-# arm64-bionic
-docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt --rm arm64v8/ubuntu:bionic /bin/bash -c "cd /mnt; scripts/mkdeb"
-scripts/upload_deb build/*.deb $API_KEY bionic testing arm64
-mv build/*.deb debs/bionic
+    # Build debs for each of the architectures
+    docker run -v `pwd`:/mnt wfb-bridge-builder-amd64-${DISTRO} /bin/bash -c "cd /mnt; scripts/mkdeb"
+    mv build/*.deb debs/${DISTRO}
+    if [ ${DISTRO} != "ubuntu-focal" ]; then
+        docker run -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static -v`pwd`:/mnt wfb-bridge-builder-armhf-${DISTRO} /bin/bash -c "cd /mnt; scripts/mkdeb"
+        mv build/*.deb debs/${DISTRO}
+    fi
+    docker run -v /usr/bin/qemu-aarch64-static:/usr/bin/qemu-aarch64-static -v`pwd`:/mnt wfb-bridge-builder-arm64-${DISTRO} /bin/bash -c "cd /mnt; scripts/mkdeb"
+    mv build/*.deb debs/${DISTRO}
+done

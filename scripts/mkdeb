@@ -17,5 +17,5 @@ mkdir -p build debs
 # Build the debian package
 cd build
 cmake -DCMAKE_INSTALL_PREFIX=/ ..
-make
+make -j
 cpack
