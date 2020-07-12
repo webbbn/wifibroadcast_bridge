@@ -76,8 +76,8 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       // Create the packed status message and send it.
       if (packed_udp_out) {
 	wifibroadcast_rx_status_forward_t rxs;
-	rxs.damaged_block_cnt = s.block_errors;
-	rxs.lost_packet_cnt = s.sequence_errors;
+	rxs.damaged_block_cnt = s.sequence_errors;
+	rxs.lost_packet_cnt = s.block_errors;
 	rxs.skipped_packet_cnt = 0;
 	rxs.injection_fail_cnt = os.inject_errors;
 	rxs.received_packet_cnt = s.blocks_in;
