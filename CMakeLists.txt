@@ -95,8 +95,12 @@ target_link_libraries(test_fec ${Boost_LIBRARIES} wifibroadcast)
 install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)
 
 # Add rules to install the python files
-install(DIRECTORY python/ DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application
-  FILES_MATCHING PATTERN "*.py")
+install(FILES
+  python/__init__.py
+  python/ar7010.py
+  python/ar9271.py
+  python/rtl8812au.py
+  DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
 
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
