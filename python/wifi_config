@@ -240,12 +240,71 @@ class Network(object):
         self.m_wfb_bridge_proc = sp.Popen(cmd)
         logging.info("Started wfb_bridge with PID: %d" % (self.m_wfb_bridge_proc.pid))
 
+    def configure_fou(self):
+
+        # Make sure the fou module is loaded
+        try:
+            os.system("modprobe fou")
+        except Exception as e:
+            logging.error("Error loading the fou module")
+            logging.error(e)
+            return False
+
+        # Set the port numbersed based on the mode
+        if mode == "ground":
+            sport = 8346
+            dport = 8345
+            tunip = "192.168.30.1/24"
+        else:
+            sport = 8345
+            dport = 8346
+            tunip = "192.168.30.2/24"
+
+        # Remove any existing interfaces
+        try:
+            os.system("ip link set down dev fou0")
+        except Exception as e:
+            pass
+        try:
+            os.system("ip link set down dev tunl0")
+        except Exception as e:
+            pass
+        try:
+            os.system("ip link del name fou0")
+        except Exception as e:
+            pass
+        try:
+            os.system("ip link del name tunl0")
+        except Exception as e:
+            pass
+        try:
+            os.system("ip fou del port " + str(sport))
+        except Exception as e:
+            pass
+
+        # Create and configure the fou interface
+        try:
+            os.system("ip fou add port " + str(sport) + " ipproto 4")
+            os.system("ip link add name fou0 type ipip remote 127.0.0.1 local 127.0.0.1 encap fou encap-sport auto encap-dport " + str(dport))
+            os.system("ip link set up dev tunl0")
+            os.system("ip link set up dev fou0")
+            os.system("ip addr add " + tunip + " dev fou0")
+            os.system("ifconfig fou0 mtu 1300")
+        except Exception as e:
+            logging.error("Error creating and/or configuring the fou module")
+            logging.error(e)
+            return False
+
+        return True
 
 net = Network()
 net.read_config(config_filename)
 
 # Configure any existing devices
 net.configure_interfaces()
+
+# Configure the fou interface
+net.configure_fou()
 
 # Monitor for any network adapters getting plugged in or unplugged
 monitor = udev.Monitor.from_netlink(udev_context)

@@ -48,16 +48,6 @@ sudo ../scripts/postinst
 cpack
 ~~~
 
-## Intall from Lauchpad PPA
-
-It's possible to install the latest version using apt-get from a PPA. The following commands will add the PPA to your list of repositories and install the package:
-
-~~~
-sudo add-apt-repository ppa:webbbn/ppa
-sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 5C69612679453DE1
-sudo apt-get install wifibroadcast-bridge
-~~~
-
 ## Configuration
 
 **Note:** The only parameter that should need to be different between the ground and air side is the mode, which should be ground on one side and air on the other.
