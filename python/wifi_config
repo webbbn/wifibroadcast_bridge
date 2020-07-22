@@ -242,14 +242,6 @@ class Network(object):
 
     def configure_fou(self):
 
-        # Make sure the fou module is loaded
-        try:
-            os.system("modprobe fou")
-        except Exception as e:
-            logging.error("Error loading the fou module")
-            logging.error(e)
-            return False
-
         # Set the port numbersed based on the mode
         if mode == "ground":
             sport = 8346
@@ -281,6 +273,18 @@ class Network(object):
             os.system("ip fou del port " + str(sport))
         except Exception as e:
             pass
+        try:
+            os.system("rmmod fou")
+        except Exception as e:
+            pass
+    
+        # Make sure the fou module is loaded
+        try:
+            os.system("modprobe fou")
+        except Exception as e:
+            logging.error("Error loading the fou module")
+            logging.error(e)
+            return False
 
         # Create and configure the fou interface
         try:
