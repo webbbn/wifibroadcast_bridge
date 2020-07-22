@@ -12,4 +12,4 @@ Restart=always
 RestartSec=5s
 
 [Install]
-WantedBy=mult-user.target
+WantedBy=multi-user.target
