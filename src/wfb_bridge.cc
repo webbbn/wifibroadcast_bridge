@@ -93,9 +93,13 @@ int main(int argc, char** argv) {
   // Create the logger
   log4cpp::Appender *console = new log4cpp::OstreamAppender("console", &std::cout);
   console->setLayout(new log4cpp::BasicLayout());
+  log4cpp::Appender *syslog = new log4cpp::SyslogAppender("syslog", argv[0]);
+  syslog->setLayout(new log4cpp::BasicLayout());
   log4cpp::Category& root = log4cpp::Category::getRoot();
-  root.setPriority(get_log_level(log_level));
+  console->setThreshold(get_log_level(log_level));
   root.addAppender(console);
+  syslog->setThreshold(get_log_level(syslog_level));
+  root.addAppender(syslog);
   LOG_INFO << "wfb_bridge running in " << mode << " mode, connecting to " << device
 	   << " with device type " << device_type;
   LOG_INFO << "logging '" << log_level << "' to console and '"

@@ -50,7 +50,6 @@
 [global]
 loglevel = critical
 sysloglevel = info
-sysloghost = localhost
 syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200

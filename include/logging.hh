@@ -32,23 +32,23 @@
 static log4cpp::Priority::PriorityLevel get_log_level(std::string level) {
   std::transform(level.begin(), level.end(), level.begin(),
                  [](unsigned char c){ return std::tolower(c); });  
-  if (level == "EMERGENCY") {
+  if (level == "emergency") {
     return log4cpp::Priority::EMERG;
-  } else if (level == "FATAL") {
+  } else if (level == "fatal") {
     return log4cpp::Priority::FATAL;
-  } else if (level == "ALERT") {
+  } else if (level == "alert") {
     return log4cpp::Priority::ALERT;
-  } else if (level == "CRITICAL") {
+  } else if (level == "critical") {
     return log4cpp::Priority::CRIT;
-  } else if (level == "ERROR") {
+  } else if (level == "error") {
     return log4cpp::Priority::ERROR;
-  } else if (level == "WARN") {
+  } else if (level == "warn") {
     return log4cpp::Priority::WARN;
-  } else if (level == "NOTICE") {
+  } else if (level == "notice") {
     return log4cpp::Priority::NOTICE;
-  } else if (level == "INFO") {
+  } else if (level == "info") {
     return log4cpp::Priority::INFO;
-  } else if (level == "DEBUG") {
+  } else if (level == "debug") {
     return log4cpp::Priority::DEBUG;
   } else {
     return log4cpp::Priority::NOTSET;
