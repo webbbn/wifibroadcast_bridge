@@ -4,8 +4,6 @@
 #include <string>
 #include <mutex>
 
-#include <boost/lexical_cast.hpp>
-
 #include <wifibroadcast/fec.hh>
 
 struct transfer_stats_t {

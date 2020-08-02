@@ -1,13 +1,12 @@
 
+#include <sys/time.h>
+
 #include <iostream>
 
-#include <boost/program_options.hpp>
+#include <cxxopts.hpp>
 
-#include <logging.hh>
 #include <wifibroadcast/fec.hh>
-
-namespace po=boost::program_options;
-
+#include <logging.hh>
 
 inline double cur_time() {
   struct timeval t;
@@ -33,11 +32,11 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
     for (uint32_t j = 0; j < buf_size; ++j) {
       buf[j] = rand() % 255;
     }
-    LOG_DEBUG << "Iteration: " << i << "  buffer size: " << buf_size;
+    std::cout << "Iteration: " << i << "  buffer size: " << buf_size << std::endl;
 
     // Encode it
     std::vector<std::shared_ptr<FECBlock> > blks = enc.encode_buffer(buf);
-    LOG_DEBUG << blks.size() << " blocks created";
+    std::cerr << blks.size() << " blocks created\n";
 
     // Decode it
     std::vector<uint8_t> obuf;
@@ -54,12 +53,14 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
 
     // Compare
     if (obuf.size() != buf.size()) {
-      LOG_ERROR << "Buffers are different sizes: " << obuf.size() << " != " << buf.size();
+      std::cerr << "Buffers are different sizes: " << obuf.size() << " != " << buf.size()
+                << std::endl;
       ++failed;
     } else {
       for (size_t j = 0; j < buf.size(); ++j) {
 	if (obuf[j] != buf[j]) {
-	  LOG_ERROR << "Buffers differ at location " << j << ": " << obuf[j] << " != " << buf[j];
+	  std::cerr << "Buffers differ at location " << j << ": " << obuf[j] << " != " << buf[j]
+                    << std::endl;
 	  ++failed;
 	  break;
 	}
@@ -72,44 +73,39 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
 }
 
 
-int main(int argc, const char** argv) {
-  uint32_t iterations;
-  uint32_t block_size;
-  float fec_ratio;
-  std::string log_level;
+int main(int argc, char** argv) {
 
-  po::options_description desc("Allowed options");
-  desc.add_options()
-    ("help,h", "produce help message")
-    ("iterations", po::value<uint32_t>(&iterations)->default_value(1000),
-     "the number of iterations to run")
-    ("block_size", po::value<uint32_t>(&block_size)->default_value(1400),
-     "the block size to test")
-    ("fec_ratio", po::value<float>(&fec_ratio)->default_value(0.5),
-     "the FEC block / data block ratio")
-    ("log_level", po::value<std::string>(&log_level)->default_value("info"),
-     "the log level for priting debug/info")
+  cxxopts::Options options(argv[0], "Allowed options");
+  options.add_options()
+    ("h,help", "produce help message")
+    ("iterations", "the number of iterations to run",
+     cxxopts::value<uint32_t>()->default_value("1000"))
+    ("block_size", "the block size to test",
+     cxxopts::value<uint32_t>()->default_value("1400"))
+    ("fec_ratio", "the FEC block / data block ratio",
+     cxxopts::value<float>()->default_value("0.5"))
     ;
 
-  po::options_description all_options("Allowed options");
-  all_options.add(desc);
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).options(all_options).run(), vm);
-  po::notify(vm);
-
-  if (vm.count("help")) {
-    std::cout << "Usage: " << argv[0] << " [options]\n";
-    std::cout << desc << std::endl;
+  auto result = options.parse(argc, argv);
+  if (result.count("help")) {
+    std::cout << options.help() << std::endl;
     return EXIT_SUCCESS;
   }
+  uint32_t iterations = result["iterations"].as<uint32_t>();
+  uint32_t block_size = result["block_size"].as<uint32_t>();
+  float fec_ratio = result["fec_ratio"].as<float>();
 
-  // Create the logger
-  Logger::create(log_level);
-
+  // Configure logging
+  log4cpp::Appender *appender1 = new log4cpp::OstreamAppender("console", &std::cout);
+  appender1->setLayout(new log4cpp::BasicLayout());
+  log4cpp::Category& root = log4cpp::Category::getRoot();
+  root.setPriority(log4cpp::Priority::DEBUG);
+  root.addAppender(appender1);
+  
   FECBufferEncoder enc(block_size, fec_ratio);
   std::pair<uint32_t, double> passed = run_test(enc, block_size, iterations);
   LOG_INFO << passed.first << " tests passed out of " << iterations
-	   << "  " << passed.second << " Mbps";
+           << "  " << passed.second << " Mbps";
   
   return (passed.first == iterations) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -10,7 +10,13 @@ Based on code and ideas from the [OpenHD](https://github.com/HD-Fpv/Open.HD "Ope
 ### Installing dependencies
 
 ~~~
-sudo apt-get install -y libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel python3-pyudev cmake firmware-ath9k-htc
+sudo apt-get install -y libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel python3-pyudev cmake firmware-ath9k-htc liblog4cpp5-dev
+~~~
+
+### Update the submodules
+
+~~~
+git submodule update --init
 ~~~
 
 ### Compiling the software

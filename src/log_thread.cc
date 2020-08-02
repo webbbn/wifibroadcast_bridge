@@ -5,8 +5,9 @@
 
 #include <iomanip>
 #include <thread>
+#include <cmath>
 
-#include <boost/format.hpp>
+#include <tinyformat.h>
 
 #include <logging.hh>
 #include <log_thread.hh>
@@ -32,7 +33,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
   // Open the UDP send socket
   int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (send_sock < 0) {
-    LOG_CRITICAL << "Error opening the UDP send socket in log_thread.";
+    std::cerr << "Error opening the UDP send socket in log_thread.\n";
     return;
   }
 
@@ -115,71 +116,71 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
     double log_dur = t - last_log;
     if (log_dur >= syslog_period) {
       std::string blks = is_ground ?
-	(boost::str(boost::format("%4d %4d %4d") % 
-		    (s.blocks_in - ps.blocks_in) %
-		    (s.blocks_out - ps.blocks_out) %
-		    (s.block_errors - ps.block_errors))) :
-	(boost::str(boost::format("%4d %4d %4d") % 
-		    (s.blocks_out - ps.blocks_out) %
-		    (s.blocks_in - ps.blocks_in) %
-		    (s.block_errors - ps.block_errors)));
-      std::string times = boost::str(boost::format("%3d %3d %3d") % 
-				     static_cast<uint32_t>(std::round(s.encode_time)) %
-				     static_cast<uint32_t>(std::round(s.send_time)) %
-				     static_cast<uint32_t>(std::round(s.pkt_time)));
+        tfm::format("%4d %4d %4d",
+		    (s.blocks_in - ps.blocks_in),
+		    (s.blocks_out - ps.blocks_out),
+		    (s.block_errors - ps.block_errors)) :
+        tfm::format("%4d %4d %4d",
+		    (s.blocks_out - ps.blocks_out),
+		    (s.blocks_in - ps.blocks_in),
+		    (s.block_errors - ps.block_errors));
+      std::string times = tfm::format("%3d %3d %3d",
+                                      static_cast<uint32_t>(std::round(s.encode_time)),
+                                      static_cast<uint32_t>(std::round(s.send_time)),
+                                      static_cast<uint32_t>(std::round(s.pkt_time)));
       std::string rate = is_ground ?
-	(boost::str(boost::format("%5.2f %5.2f") %
-		    mbps(s.bytes_in, ps.bytes_in, log_dur) %
-		    mbps(s.bytes_out, ps.bytes_out, log_dur))) :
-	(boost::str(boost::format("%5.2f %5.2f") %
-		    mbps(s.bytes_out, ps.bytes_out, log_dur) %
-		    mbps(s.bytes_in, ps.bytes_in, log_dur)));
+	tfm::format("%5.2f %5.2f",
+                    mbps(s.bytes_in, ps.bytes_in, log_dur),
+		    mbps(s.bytes_out, ps.bytes_out, log_dur)) :
+	tfm::format("%5.2f %5.2f",
+		    mbps(s.bytes_out, ps.bytes_out, log_dur),
+		    mbps(s.bytes_in, ps.bytes_in, log_dur));
       LOG_INFO << "Name   Interval Seq(r/e)  Blocks(d/u/e)  Inj  Rate(d/u)   Times(e/s/t)Us  LatMs RSSI";
-      LOG_INFO << boost::format
-	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
-	stats.name() %
-	std::round(log_dur) %
-	(s.sequences - ps.sequences) %
-	(s.sequence_errors - ps.sequence_errors) %
-	blks %
-	(s.inject_errors - ps.inject_errors) %
-	rate %
-	times %
-	static_cast<uint32_t>(std::round(s.latency)) %
-	static_cast<int16_t>(std::round(rssi));
+      LOG_INFO << tfm::format
+	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d",
+         stats.name(),
+         std::round(log_dur),
+         (s.sequences - ps.sequences),
+         (s.sequence_errors - ps.sequence_errors),
+         blks,
+         (s.inject_errors - ps.inject_errors),
+         rate,
+         times,
+         static_cast<uint32_t>(std::round(s.latency)),
+         static_cast<int16_t>(std::round(rssi)));
       ps = s;
       std::string oblks = is_ground ?
-	(boost::str(boost::format("%4d %4d %4d") % 
-		    (os.blocks_out - pso.blocks_out) %
-		    (os.blocks_in - pso.blocks_in) %
-		    (os.block_errors - pso.block_errors))) :
-	(boost::str(boost::format("%4d %4d %4d") % 
-		    (os.blocks_in - pso.blocks_in) %
-		    (os.blocks_out - pso.blocks_out) %
-		    (os.block_errors - pso.block_errors)));
-      std::string otimes = boost::str(boost::format("%3d %3d %3d") % 
-				      static_cast<uint32_t>(std::round(os.encode_time)) %
-				      static_cast<uint32_t>(std::round(os.send_time)) %
-				      static_cast<uint32_t>(std::round(os.pkt_time)));
+	tfm::format("%4d %4d %4d",
+		    (os.blocks_out - pso.blocks_out),
+		    (os.blocks_in - pso.blocks_in),
+		    (os.block_errors - pso.block_errors)) :
+	tfm::format("%4d %4d %4d",
+		    (os.blocks_in - pso.blocks_in),
+		    (os.blocks_out - pso.blocks_out),
+		    (os.block_errors - pso.block_errors));
+      std::string otimes = tfm::format("%3d %3d %3d",
+                                       static_cast<uint32_t>(std::round(os.encode_time)),
+                                       static_cast<uint32_t>(std::round(os.send_time)),
+                                       static_cast<uint32_t>(std::round(os.pkt_time)));
       std::string orate = is_ground ?
-	(boost::str(boost::format("%5.2f %5.2f") %
-		    mbps(os.bytes_out, pso.bytes_out, log_dur) %
-		    mbps(os.bytes_in, pso.bytes_in, log_dur))) :
-	(boost::str(boost::format("%5.2f %5.2f") %
-		    mbps(os.bytes_in, pso.bytes_in, log_dur) %
-		    mbps(os.bytes_out, pso.bytes_out, log_dur)));
-      LOG_INFO << boost::format
-	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d") %
-	stats_other.name() %
-	std::round(log_dur) %
-	(os.sequences - pso.sequences) %
-	(os.sequence_errors - pso.sequence_errors) %
-	oblks %
-	(os.inject_errors - pso.inject_errors) %
-	orate %
-	otimes %
-	static_cast<uint32_t>(std::round(os.latency)) %
-	static_cast<int16_t>(std::round(orssi));
+	tfm::format("%5.2f %5.2f",
+		    mbps(os.bytes_out, pso.bytes_out, log_dur),
+		    mbps(os.bytes_in, pso.bytes_in, log_dur)) :
+	tfm::format("%5.2f %5.2f",
+		    mbps(os.bytes_in, pso.bytes_in, log_dur),
+                    mbps(os.bytes_out, pso.bytes_out, log_dur));
+      LOG_INFO << tfm::format
+	("%-6s %4.2f s %4d %4d   %-14s %3d %s  %14s  %3d   %4d",
+         stats_other.name(),
+         std::round(log_dur),
+         (os.sequences - pso.sequences),
+         (os.sequence_errors - pso.sequence_errors),
+         oblks,
+         (os.inject_errors - pso.inject_errors),
+         orate,
+         otimes,
+         static_cast<uint32_t>(std::round(os.latency)),
+         static_cast<int16_t>(std::round(orssi)));
       pso = os;
       last_log = t;
     }

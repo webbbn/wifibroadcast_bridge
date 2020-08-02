@@ -1,8 +1,6 @@
 
 #include <math.h>
 
-#include <logging.hh>
-
 #include <wifibroadcast/fec.hh>
 
 /*******************************************************************************

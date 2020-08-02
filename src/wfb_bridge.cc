@@ -15,6 +15,10 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include <cxxopts.hpp>
+
+#include <INIReader.h>
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -23,15 +27,6 @@
 #include <thread>
 #include <set>
 #include <cstdlib>
-
-#include <boost/program_options.hpp>
-
-#include <boost/foreach.hpp>
-
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <logging.hh>
 #include <shared_queue.hh>
@@ -43,13 +38,10 @@
 #include <wfb_bridge.hh>
 #include <raw_send_thread.hh>
 
-namespace po=boost::program_options;
-namespace pt=boost::property_tree;
-
 double last_packet_time = 0;
 
 
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
 
   // Ensure we've running with root privileges
   auto uid = getuid();
@@ -58,38 +50,24 @@ int main(int argc, const char** argv) {
     return EXIT_FAILURE;
   }
 
-  po::options_description desc("Allowed options");
-  desc.add_options()
-    ("help,h", "produce help message")
-    ;
-
   std::string conf_file;
   std::string mode;
   std::vector<std::string> devices;
-  po::options_description pos("Positional");
-  pos.add_options()
-    ("conf_file", po::value<std::string>(&conf_file),
-     "the path to the configuration file used for configuring ports")
-    ("mode", po::value<std::string>(&mode),
-     "the mode (air|ground)")
-    ("devices", po::value<std::vector<std::string> >(&devices),
-     "the wifi devices to connect to (interface:type interface:type ...)")
+  cxxopts::Options options(argv[0], "Allowed options");
+  options.add_options()
+    ("h,help", "produce help message")
+    ("conf_file", "the path to the configuration file used for configuring ports",
+     cxxopts::value<std::string>(conf_file))
+    ("mode", "the mode (air|ground)", cxxopts::value<std::string>(mode))
+    ("devices", "the wifi devices to connect to (interface:type interface:type ...)",
+     cxxopts::value<std::vector<std::string> >(devices))
     ;
-  po::positional_options_description p;
-  p.add("conf_file", 1);
-  p.add("mode", 1);
-  p.add("devices", -1);
-
-  po::options_description all_options("Allowed options");
-  all_options.add(desc).add(pos);
-  po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv).
-	    options(all_options).positional(p).run(), vm);
-  po::notify(vm);
-
-  if (vm.count("help") || !vm.count("conf_file") || !vm.count("mode") || devices.empty()) {
-    std::cout << "Usage: options_description [options] <configuration file> <mode (air|ground> <devices>\n";
-    std::cout << desc << std::endl;
+  options.parse_positional({"conf_file", "mode", "devices"});
+  auto result = options.parse(argc, argv);
+  if (result.count("help") || !result.count("conf_file") ||
+      !result.count("mode") || devices.empty()) {
+    std::cout << options.help() << std::endl;
+    std::cout << "Positional parameters: <configuration file> <mode (air|ground) <devices>\n";
     return EXIT_SUCCESS;
   }
 
@@ -99,23 +77,25 @@ int main(int argc, const char** argv) {
   std::string device_type = devices[0].substr(colon + 1, devices[0].size());
 
   // Parse the configuration file.
-  pt::ptree conf;
-  try {
-    pt::read_ini(conf_file, conf);
-  } catch(...) {
-    std::cerr << "Error reading the configuration file: " << conf_file << std::endl;;
+  INIReader conf(conf_file);
+  if (conf.ParseError()) {
+    std::cerr << "Error reading the configuration file: " << conf_file << std::endl;
     return EXIT_FAILURE;
   }
 
   // Read the global parameters
-  std::string log_level = conf.get<std::string>("global.loglevel", "info");
-  std::string syslog_level = conf.get<std::string>("global.sysloglevel", "info");
-  std::string syslog_host = conf.get<std::string>("global.sysloghost", "localhost");
+  std::string log_level = conf.Get("global", "loglevel", "info");
+  std::string syslog_level = conf.Get("global", "sysloglevel", "info");
+  std::string syslog_host = conf.Get("global", "sysloghost", "localhost");
 
-  uint16_t max_queue_size = conf.get<uint16_t>("global.maxqueuesize", 200);
+  uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
 
   // Create the logger
-  Logger::create(log_level, syslog_level, syslog_host);
+  log4cpp::Appender *console = new log4cpp::OstreamAppender("console", &std::cout);
+  console->setLayout(new log4cpp::BasicLayout());
+  log4cpp::Category& root = log4cpp::Category::getRoot();
+  root.setPriority(get_log_level(log_level));
+  root.addAppender(console);
   LOG_INFO << "wfb_bridge running in " << mode << " mode, connecting to " << device
 	   << " with device type " << device_type;
   LOG_INFO << "logging '" << log_level << "' to console and '"
@@ -153,8 +133,8 @@ int main(int argc, const char** argv) {
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   std::vector<std::shared_ptr<UDPDestination> > udp_out(64);
-  BOOST_FOREACH(const auto &v, conf) {
-    const std::string &group = v.first;
+  const std::set<std::string> &sections = conf.Sections();
+  for (const auto &group : sections) {
 
     // Ignore sections that don't start with 'link-'
     if (group.substr(0, 5) != "link-") {
@@ -162,18 +142,18 @@ int main(int argc, const char** argv) {
     }
 
     // Only process uplink configuration entries.
-    std::string direction = v.second.get<std::string>("direction", "");
+    std::string direction = conf.Get(group, "direction", "");
     if (((direction == "up") && (mode == "air")) ||
 	((direction == "down") && (mode == "ground"))) {
 
       // Get the name.
-      std::string name = v.second.get<std::string>("name", "");
+      std::string name = conf.Get(group, "name", "");
 
       // Get the remote hostname/ip(s) and port(s)
-      std::string outports = v.second.get<std::string>("outports");
+      std::string outports = conf.Get(group, "outports", "");
 
       // Get the port number (required).
-      uint8_t port = v.second.get<uint16_t>("port", 0);
+      uint8_t port = static_cast<uint16_t>(conf.GetInteger(group, "port", 0));
       if (port > 64) {
 	LOG_CRITICAL << "Invalid port specified for " << name << "  (" << port << ")";
 	return EXIT_FAILURE;

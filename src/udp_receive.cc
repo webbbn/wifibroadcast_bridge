@@ -56,81 +56,81 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t t
 
 bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       std::vector<std::shared_ptr<std::thread> > &thrs,
-			       boost::property_tree::ptree &conf,
+                               const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
 			       const std::string &mode,
 			       const std::string &device_type) {
 
   // Extract a couple of global options.
-  float syslog_period = conf.get<float>("global.syslogperiod", 5);
-  float status_period = conf.get<float>("global.statusperiod", 0.2);
-  bool mcs = conf.get<uint8_t>("device-" + device_type + ".mcs", 0) ? true : false;
-  bool stbc = conf.get<uint8_t>("device-" + device_type + "stbc", 0) ? true : false;
-  bool ldpc = conf.get<uint8_t>("device-" + device_type + "ldpc", 0) ? true : false;
+  float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
+  float status_period = conf.GetFloat("global", "statusperiod", 0.2);
+  bool mcs = conf.GetInteger("device-" + device_type, "mcs", 0) != 0;
+  bool stbc = conf.GetInteger("device-" + device_type, "stbc", 0) != 0;
+  bool ldpc = conf.GetInteger("device-" + device_type, "ldpc", 0) != 0;
 
   // If this is the ground side, get the host and port to send status messages to.
   std::shared_ptr<UDPDestination> udp_out;
   std::shared_ptr<UDPDestination> packed_udp_out;
   if (mode == "ground") {
-    udp_out.reset(new UDPDestination(conf.get<std::string>("link-status_down.outports", ""),
+    udp_out.reset(new UDPDestination(conf.Get("link-status_down", "outports", ""),
 				     std::shared_ptr<FECDecoder>()));
     packed_udp_out.reset(new UDPDestination
-			 (conf.get<std::string>("link-packed_status_down.outports", ""),
+			 (conf.Get("link-packed_status_down", "outports", ""),
 			  std::shared_ptr<FECDecoder>()));
   } else {
-    udp_out.reset(new UDPDestination(conf.get<std::string>("link-status_up.outports", ""),
+    udp_out.reset(new UDPDestination(conf.Get("link-status_up", "outports", ""),
 				     std::shared_ptr<FECDecoder>()));
     packed_udp_out.reset(new UDPDestination
-			 (conf.get<std::string>("link-packed_status_up.outports", ""),
+			 (conf.Get("link-packed_status_up", "outports", ""),
 			  std::shared_ptr<FECDecoder>()));
   }
 
   // Create the the threads for receiving packets from UDP sockets
   // and relaying them to the raw socket interface.
-  for (const auto &v : conf) {
-    const std::string &group = v.first;
+
+  for (const auto &section : conf.Sections()) {
 
     // Ignore non-link sections
-    if ((group.substr(0, 5) != "link-") || (group == "link-packed_status_down")) {
+    if ((section.substr(0, 5) != "link-") || (section == "link-packed_status_down")) {
       continue;
     }
 
     // Only process uplink configuration entries.
-    std::string direction = v.second.get<std::string>("direction", "");
+    std::string direction = conf.Get(section, "direction", "");
     if (((direction == "down") && (mode == "air")) ||
 	((direction == "up") && (mode == "ground"))) {
 
       // Get the name.
-      std::string name = v.second.get<std::string>("name", "");
+      std::string name = conf.Get(section, "name", "");
 
       // Get the UDP port number (required except for status).
-      uint16_t inport = v.second.get<uint16_t>("inport", 0);
-      if ((inport == 0) && (group != "link-status_down") && (group != "link-status_up")) {
-	LOG_CRITICAL << "No inport specified for " << group;
+      uint16_t inport = static_cast<uint16_t>(conf.GetInteger(section, "inport", 0));
+      if ((inport == 0) && (section != "link-status_down") && (section != "link-status_up")) {
+	LOG_CRITICAL << "No inport specified for " << section;
 	return false;
       }
 
       // Get the remote hostname/ip (optional)
-      std::string hostname = v.second.get<std::string>("inhost", "127.0.0.1");
+      std::string hostname = conf.Get(section, "inhost", "127.0.0.1");
 
       // Get the port number (required).
-      uint8_t port = v.second.get<uint16_t>("port", 0);
+      uint8_t port = static_cast<uint16_t>(conf.GetInteger(section, "port", 0));
       if (port == 0) {
-	LOG_CRITICAL << "No port specified for " << group;
+	LOG_CRITICAL << "No port specified for " << section;
 	return false;
       }
 
       // Get the link type
-      std::string type = v.second.get<std::string>("type", "data");
+      std::string type = conf.Get(section, "type", "data");
 
       // Get the priority (optional).
-      uint8_t priority = v.second.get<uint8_t>("priority", 100);
+      uint8_t priority = static_cast<uint8_t>(conf.GetInteger(section, "priority", 100));
 
       // Get the FEC stats (optional).
-      uint16_t blocksize = v.second.get<uint16_t>("blocksize", 1500);
-      uint8_t nblocks = v.second.get<uint8_t>("blocks", 0);
-      uint8_t nfec_blocks = v.second.get<uint8_t>("fec", 0);
+      uint16_t blocksize = static_cast<uint16_t>(conf.GetInteger(section, "blocksize", 1500));
+      uint8_t nblocks = static_cast<uint8_t>(conf.GetInteger(section, "blocks", 0));
+      uint8_t nfec_blocks = static_cast<uint8_t>(conf.GetInteger(section, "fec", 0));
       bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
       // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
@@ -148,16 +148,16 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
       } else {
 	opts.link_type = DATA_LINK;
       }
-      opts.data_rate = v.second.get<uint8_t>("datarate", 18);
+      opts.data_rate = static_cast<uint8_t>(conf.GetInteger(section, "datarate", 18));
       opts.mcs = mcs;
       opts.stbc = stbc;
       opts.ldpc = ldpc;
 
       // See if this link has a rate target specified.
-      uint16_t rate_target = v.second.get<uint16_t>("rate_target", 0);
+      uint16_t rate_target = static_cast<uint16_t>(conf.GetInteger(section, "rate_target", 0));
 
       // Create the logging thread if this is a status down channel.
-      if ((group == "link-status_down") || (group == "link-status_up")) {
+      if ((section == "link-status_down") || (section == "link-status_up")) {
 
 	// Create the stats logging thread.
 	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));

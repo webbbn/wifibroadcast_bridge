@@ -1,6 +1,7 @@
 
 #include <algorithm>
 #include <thread>
+#include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

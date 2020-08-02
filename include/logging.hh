@@ -1,48 +1,56 @@
 
 #pragma once
 
-#define BOOST_LOG_USE_NATIVE_SYSLOG 1
+#include <cctype>
+#include <algorithm>
 
-#include <memory>
+#include <log4cpp/Category.hh>
+#include <log4cpp/OstreamAppender.hh>
+#include <log4cpp/SyslogAppender.hh>
 
-#include <boost/log/common.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/attributes.hpp>
-#include <boost/log/sinks/sync_frontend.hpp>
-#include <boost/log/sinks/syslog_backend.hpp>
-#include <boost/log/utility/setup/console.hpp>
+#ifdef LOG_CRITICAL
+#undef LOG_CRITICAL
+#endif
+#ifdef LOG_ERROR
+#undef LOG_ERROR
+#endif
+#ifdef LOG_WARNING
+#undef LOG_WARNING
+#endif
+#ifdef LOG_INFO
+#undef LOG_INFO
+#endif
+#ifdef LOG_DEBUG
+#undef LOG_DEBUG
+#endif
+#define LOG_CRITICAL log4cpp::Category::getRoot() << log4cpp::Priority::CRIT
+#define LOG_ERROR log4cpp::Category::getRoot() << log4cpp::Priority::ERROR
+#define LOG_WARNING log4cpp::Category::getRoot() << log4cpp::Priority::WARN
+#define LOG_INFO log4cpp::Category::getRoot() << log4cpp::Priority::INFO
+#define LOG_DEBUG log4cpp::Category::getRoot() << log4cpp::Priority::DEBUG
 
-class Logger {
-public:
-
-  // Define application-specific severity levels
-  enum severity_level { critical, error, warning, info, debug };
-
-  typedef std::shared_ptr<Logger> LoggerP;
-  typedef boost::log::sinks::synchronous_sink<boost::log::sinks::syslog_backend> Sink;
-  typedef boost::log::sources::severity_logger<Logger::severity_level> BoostLogger;
-
-  static void create(const std::string &log_level = "",
-		     const std::string &syslog_level = "",
-		     const std::string &loghost = "localhost");
-
-  static BoostLogger &logger() {
-    return g_logger->m_logger;
+static log4cpp::Priority::PriorityLevel get_log_level(std::string level) {
+  std::transform(level.begin(), level.end(), level.begin(),
+                 [](unsigned char c){ return std::tolower(c); });  
+  if (level == "EMERGENCY") {
+    return log4cpp::Priority::EMERG;
+  } else if (level == "FATAL") {
+    return log4cpp::Priority::FATAL;
+  } else if (level == "ALERT") {
+    return log4cpp::Priority::ALERT;
+  } else if (level == "CRITICAL") {
+    return log4cpp::Priority::CRIT;
+  } else if (level == "ERROR") {
+    return log4cpp::Priority::ERROR;
+  } else if (level == "WARN") {
+    return log4cpp::Priority::WARN;
+  } else if (level == "NOTICE") {
+    return log4cpp::Priority::NOTICE;
+  } else if (level == "INFO") {
+    return log4cpp::Priority::INFO;
+  } else if (level == "DEBUG") {
+    return log4cpp::Priority::DEBUG;
+  } else {
+    return log4cpp::Priority::NOTSET;
   }
-
-private:
-  BoostLogger m_logger;
-  static LoggerP g_logger;
-
-  Logger(const std::string &log_level_str = "",
-	 const std::string &syslog_level_str = "",
-	 const std::string &loghost = "localhost");
-
-  severity_level parse_log_level(const std::string &str);
-};
-
-#define LOG_CRITICAL BOOST_LOG_SEV(Logger::logger(), Logger::critical)
-#define LOG_ERROR BOOST_LOG_SEV(Logger::logger(), Logger::error)
-#define LOG_WARNING BOOST_LOG_SEV(Logger::logger(), Logger::warning)
-#define LOG_INFO BOOST_LOG_SEV(Logger::logger(), Logger::info)
-#define LOG_DEBUG BOOST_LOG_SEV(Logger::logger(), Logger::debug)
+}

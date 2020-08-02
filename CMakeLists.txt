@@ -21,7 +21,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Define some default CFLAGS
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -DNDEBUG -DBOOST_LOG_DYN_LINK")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3 -DNDEBUG")
 
 # Add the local include directory to the include path
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -32,14 +32,48 @@ set(LibDir "usr/lib")
 set(IncludeDir "usr/include")
 set(PythonDistDir "dist-packages")
 
-# Find the boost libraries
-find_package(Boost REQUIRED COMPONENTS
-  program_options
-  system
-  filesystem
-  log_setup
-  log)
-include_directories(${Boost_INCLUDE_DIR})
+# We have submodule, so we need git to update the submodule
+find_package(Git QUIET)
+
+# Update submodules as needed
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+  option(GIT_SUBMODULE "Check submodules during build" OFF)
+  if(GIT_SUBMODULE)
+    message(STATUS "Submodule update")
+    execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+    endif()
+  endif()
+endif()
+
+# Ensure the submodule directories were checked out successfully
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/cxxopts/include/cxxopts.hpp")
+  message(FATAL_ERROR "The cxxopts submodule was not downloaded! Please update submodules and try again.")
+endif()
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/tinyformat/tinyformat.h")
+  message(FATAL_ERROR "The tinyformat submodule was not downloaded! Please update submodules and try again.")
+endif()
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/inih/INIReader.h")
+  message(FATAL_ERROR "The inih submodule was not downloaded! Please update submodules and try again.")
+endif()
+
+# Add the log4cpp package
+find_package(log4cpp REQUIRED)
+include_directories(${LOG4CPP_INCLUDE_DIR})
+
+# Add the cxxopts submodule directory
+add_subdirectory(modules/cxxopts)
+include_directories(modules/cxxopts/include)
+
+# Add the tinyformat submodule directory
+add_subdirectory(modules/tinyformat)
+include_directories(modules/tinyformat)
+
+# Add the inih submodule directory
+include_directories(modules/inih)
 
 # Find the pcap library
 find_package(PCAP)
@@ -68,10 +102,9 @@ add_library(wifibroadcast
   src/raw_socket.cc
   src/fec.c
   src/fec.cc
-  src/logging.cc
   src/radiotap/radiotap.c
   src/transfer_stats.cc)
-target_link_libraries(wifibroadcast ${Boost_LIBRARIES} ${PCAP_LIBRARY})
+target_link_libraries(wifibroadcast ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES})
 install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
 
 # Build the wfb_bridge program
@@ -85,11 +118,11 @@ add_executable(wfb_bridge
   src/raw_send_thread.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${Boost_LIBRARIES} ${PCAP_LIBRARY} wifibroadcast pthread)
+target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} wifibroadcast pthread)
 
 # Build the FEC test program
 add_executable(test_fec src/test_fec.cc)
-target_link_libraries(test_fec ${Boost_LIBRARIES} wifibroadcast)
+target_link_libraries(test_fec wifibroadcast ${LOG4CPP_LIBRARIES})
 
 # Add rules to install the python executables
 install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)
@@ -132,7 +165,7 @@ install(FILES
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,libboost-program-options-dev,libboost-system-dev,libboost-filesystem-dev,libboost-log-dev,firmware-ath9k-htc")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,firmware-ath9k-htc")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")

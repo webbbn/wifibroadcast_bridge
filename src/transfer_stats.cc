@@ -1,9 +1,10 @@
 
+#include <algorithm>
 #include <iostream>
 #include <iomanip>
-
-#include <boost/lexical_cast.hpp>
-#include <boost/tokenizer.hpp>
+#include <cmath>
+#include <string>
+#include <sstream>
 
 #include <wifibroadcast/transfer_stats.hh>
 
@@ -86,40 +87,33 @@ transfer_stats_t TransferStats::get_stats() {
 }
 
 template <typename tmpl__T>
-bool parse_next(tmpl__T &v,
-		boost::tokenizer<boost::char_separator<char> >::iterator &i,
-		const boost::tokenizer<boost::char_separator<char> >::iterator end) {
-  if (i == end) {
-    return false;
+bool parse_next(tmpl__T &v, std::istringstream &ss) {
+  std::string token;
+  if (std::getline(ss, token, ',')) {
+    std::istringstream oss(token);
+    return (oss >> v).fail();
   }
-  try {
-    v = boost::lexical_cast<tmpl__T>(*i++);
-  } catch(boost::bad_lexical_cast &) {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 bool TransferStats::update(const std::string &s) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  boost::char_separator<char> sep(",");
-  boost::tokenizer<boost::char_separator<char> > tok(s, sep);
-  boost::tokenizer<boost::char_separator<char> >::iterator i = tok.begin();
-  return (parse_next(m_name, i, tok.end()) &&
-	  parse_next(m_seq, i, tok.end()) &&
-	  parse_next(m_blocks, i, tok.end()) &&
-	  parse_next(m_bytes, i, tok.end()) &&
-	  parse_next(m_block_errors, i, tok.end()) &&
-	  parse_next(m_seq_errors, i, tok.end()) &&
-	  parse_next(m_send_bytes, i, tok.end()) &&
-	  parse_next(m_send_blocks, i, tok.end()) &&
-	  parse_next(m_inject_errors, i, tok.end()) &&
-	  parse_next(m_queue_size, i, tok.end()) &&
-	  parse_next(m_enc_time, i, tok.end()) &&
-	  parse_next(m_send_time, i, tok.end()) &&
-	  parse_next(m_pkt_time, i, tok.end()) &&
-	  parse_next(m_latency, i, tok.end()) &&
-	  parse_next(m_rssi, i, tok.end()));
+  std::istringstream ss(s);
+  return (parse_next(m_name, ss) &&
+	  parse_next(m_seq, ss) &&
+	  parse_next(m_blocks, ss) &&
+	  parse_next(m_bytes, ss) &&
+	  parse_next(m_block_errors, ss) &&
+	  parse_next(m_seq_errors, ss) &&
+	  parse_next(m_send_bytes, ss) &&
+	  parse_next(m_send_blocks, ss) &&
+	  parse_next(m_inject_errors, ss) &&
+	  parse_next(m_queue_size, ss) &&
+	  parse_next(m_enc_time, ss) &&
+	  parse_next(m_send_time, ss) &&
+	  parse_next(m_pkt_time, ss) &&
+	  parse_next(m_latency, ss) &&
+	  parse_next(m_rssi, ss));
 }
   
 std::string TransferStats::serialize() {
