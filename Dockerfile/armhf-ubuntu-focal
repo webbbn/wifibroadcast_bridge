@@ -5,4 +5,11 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install dependencies
 RUN apt-get update
-RUN apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential
+RUN apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel build-essential wget unzip
+
+# Rebuild the broken cmake
+ENV CFLAGS -D_FILE_OFFSET_BITS=64
+ENV CXXFLAGS -D_FILE_OFFSET_BITS=64
+RUN wget --no-check-certificate https://github.com/Kitware/CMake/archive/508e25e.zip
+RUN unzip 508e25e.zip
+RUN cd CMake-508e25e21e622afc3de67481f9d2456cb3e7180b && ./bootstrap -- -DCMAKE_USE_OPENSSL=OFF && make -j && make install

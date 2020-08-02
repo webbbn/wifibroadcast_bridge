@@ -5,7 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 # Install required packages
 apt-get update
-apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential
+apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel cmake build-essential liblog4cpp5-dev
 
 # Ensure the submodules are checked out
 git submodule update --init
