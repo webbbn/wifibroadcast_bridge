@@ -165,7 +165,7 @@ install(FILES
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8,firmware-ath9k-htc")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")
