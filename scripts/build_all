@@ -10,7 +10,7 @@ fi
 rm -rf debs
 
 # Process each distro
-for DISTRO in debian-stretch debian-buster ubuntu-bionic ubuntu-focal; do
+for DISTRO in debian-buster ubuntu-bionic ubuntu-focal; do
     mkdir -p debs/${DISTRO}
 
     # Build the docker images for this distro
