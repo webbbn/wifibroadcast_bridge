@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install dependencies
 RUN apt-get update
-RUN apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel build-essential wget unzip liblog4cpp5-dev
+RUN apt-get install -y git libboost-all-dev libpcap-dev python3-pyudev libpcap0.8-dev python3-pip python3-setuptools python3-wheel build-essential wget unzip liblog4cpp5-dev libnl-3-dev libnl-genl-3-dev
 
 # Rebuild the broken cmake
 ENV CFLAGS -D_FILE_OFFSET_BITS=64
