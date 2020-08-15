@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include <pcap.h>
 
@@ -35,6 +36,8 @@ struct monitor_message_t {
 
 // Get a list of all the network device names
 bool detect_network_devices(std::vector<std::string> &ifnames);
+
+bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz);
 
 class RawSendSocket {
 public:

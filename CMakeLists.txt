@@ -93,6 +93,10 @@ else ()
 endif ()
 set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 
+# Add the libnl package
+find_package(LibNL REQUIRED)
+include_directories(${LibNL_INCLUDE_DIR})
+
 # Add the radiotap source
 include_directories(src/radiotap)
 
@@ -104,7 +108,7 @@ add_library(wifibroadcast
   src/fec.cc
   src/radiotap/radiotap.c
   src/transfer_stats.cc)
-target_link_libraries(wifibroadcast ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES})
+target_link_libraries(wifibroadcast ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY})
 install(TARGETS wifibroadcast DESTINATION ${LibDir} COMPONENT applications)
 
 # Build the wfb_bridge program
@@ -118,11 +122,15 @@ add_executable(wfb_bridge
   src/raw_send_thread.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} wifibroadcast pthread)
+target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} wifibroadcast pthread)
 
 # Build the FEC test program
 add_executable(test_fec src/test_fec.cc)
 target_link_libraries(test_fec wifibroadcast ${LOG4CPP_LIBRARIES})
+
+# Build the raw socket test program
+add_executable(raw_socket_test src/raw_socket_test.cc)
+target_link_libraries(raw_socket_test wifibroadcast ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY})
 
 # Add rules to install the python executables
 install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)

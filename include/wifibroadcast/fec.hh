@@ -239,6 +239,8 @@ private:
   std::queue<std::shared_ptr<FECBlock> > m_out_blocks;
   // The running total of the decoder status
   FECDecoderStats m_stats;
+  // Used for tracking dropped packets/sequences
+  std::vector<uint8_t> m_block_numbers;
 
   void decode();
 };

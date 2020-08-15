@@ -1,6 +1,10 @@
 
 #include <math.h>
 
+#include <tinyformat.h>
+
+#include <logging.hh>
+
 #include <wifibroadcast/fec.hh>
 
 /*******************************************************************************
@@ -125,6 +129,19 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   ++m_stats.total_packets;
   m_stats.bytes += block_length;
 
+  // Just release the block of FEC is not being performed on this channel.
+  if ((n_blocks == 0) || (n_fec_blocks == 0)) {
+    if (unrolled_seq > (unrolled_prev_seq + 1)) {
+      uint16_t db = (unrolled_seq - unrolled_prev_seq - 1);
+      m_stats.dropped_packets += db;
+      m_stats.dropped_blocks += db;
+      LOG_DEBUG << "Dropped " << db << " packets";
+    }
+    ph = h;
+    m_out_blocks.push(blk);
+    return;
+  }
+
   // Are we actively processing a block?
   if (m_block_size != 0) {
 
@@ -135,16 +152,22 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
       // we've obviously lost sync.
       if (unrolled_seq < unrolled_prev_seq) {
 	++m_stats.lost_sync;
+        LOG_DEBUG << "Lost sync: seq=" << int(h.seq_num) << " pseq=" << int(ph.seq_num);
       } else {
 
 	// Calculate how many packets we dropped with this break in the sequence.
-	m_stats.dropped_blocks += unrolled_seq - unrolled_prev_seq;
+        uint32_t db = unrolled_seq - unrolled_prev_seq;
+        if (db > 0) {
+          m_stats.dropped_blocks += db;
+          LOG_DEBUG << "Dropped block: pbn=" << unrolled_seq << " pseq=" << unrolled_prev_seq;
+        }
 
 	// Calculate how many packets we dropped.
 	uint64_t pbn = unrolled_prev_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + ph.block;
 	uint64_t bn = unrolled_seq * static_cast<uint64_t>(n_blocks + n_fec_blocks) + h.block;
 	if (pbn < bn) {
 	  m_stats.dropped_packets += bn - pbn;
+          LOG_DEBUG << "Dropped packets: pbn=" << pbn << " pseq=" << bn;
 	}
       }
 
@@ -157,10 +180,15 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
 
       // This shouldn't happen.
       ++m_stats.dropped_packets;
+      LOG_DEBUG << "FEC Decoder: This shouldn't happen";
     } else {
 
       // Record any dropped packets from the last packet.
-      m_stats.dropped_packets += (h.block - ph.block) - 1;
+      uint32_t dropped = (h.block - ph.block) - 1;
+      if (dropped > 0) {
+        m_stats.dropped_packets += dropped;
+        LOG_DEBUG << "Dropped prev: blk=" << int(h.block) << " pblk=" << int(ph.block);
+      }
     }
 
   } else if (unrolled_prev_seq == unrolled_seq) {
@@ -172,14 +200,9 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   ph = h;
 
   // Record any packets we might have skipped at the beginning of the sequence.
-  if (m_block_size == 0) {
+  if ((m_block_size == 0) && (h.block > 0)) {
     m_stats.dropped_packets += h.block;
-  }
-
-  // Just release the block of FEC is not being performed on this channel.
-  if ((n_blocks == 0) || (n_fec_blocks == 0)) {
-    m_out_blocks.push(blk);
-    return;
+    LOG_DEBUG << "Dropped begin: blk=" << int(h.block) << " pblk=" << int(ph.block);
   }
 
   // The current block size is equal to the block size of the largest block.
@@ -289,6 +312,7 @@ void FECDecoder::decode() {
       m_out_blocks.push(blocks[i]);
     } else {
       ++m_stats.dropped_blocks;
+      LOG_DEBUG << "Dropped due to length";
     }
   }
 }
@@ -324,7 +348,6 @@ FECDecoderStats operator+(const FECDecoderStats& s1, const FECDecoderStats &s2) 
   ret.bytes = s1.bytes + s2.bytes;
   return ret;
 }
-
 
 /*******************************************************************************
  * FECBufferEncoder

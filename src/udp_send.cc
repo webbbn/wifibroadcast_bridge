@@ -1,6 +1,4 @@
 
-#include <boost/lexical_cast.hpp>
-
 #include <wfb_bridge.hh>
 #include <udp_send.hh>
 #include <logging.hh>

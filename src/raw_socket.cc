@@ -17,6 +17,10 @@
 #include <sys/time.h>
 #include <linux/wireless.h>
 #include <ifaddrs.h>
+#include <netlink/netlink.h>
+#include <netlink/genl/genl.h>
+#include <netlink/genl/ctrl.h>
+#include <linux/nl80211.h>
 
 #include <iostream>
 
@@ -137,6 +141,40 @@ bool detect_network_devices(std::vector<std::string> &ifnames) {
 
   freeifaddrs(ifaddr);
   return true;
+}
+
+
+bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
+
+  /* Create the socket and connect to it. */
+  struct nl_sock *sckt = nl_socket_alloc();
+  genl_connect(sckt);
+
+  /* Allocate a new message. */
+  struct nl_msg *mesg = nlmsg_alloc();
+
+  /* Check /usr/include/linux/nl80211.h for a list of commands and attributes. */
+  enum nl80211_commands command = NL80211_CMD_SET_WIPHY;
+
+  /* Create the message so it will send a command to the nl80211 interface. */
+  genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
+
+  /* Add specific attributes to change the frequency of the device. */
+  NLA_PUT_U32(mesg, NL80211_ATTR_IFINDEX, if_nametoindex(device.c_str()));
+  NLA_PUT_U32(mesg, NL80211_ATTR_WIPHY_FREQ, freq_mhz);
+
+  /* Finally send it and receive the amount of bytes sent. */
+  nl_send_auto_complete(sckt, mesg);
+
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return true;
+
+ nla_put_failure:
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  printf("PUT Failure\n");
+  return false;
 }
 
 inline uint32_t cur_microseconds() {
