@@ -59,15 +59,11 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
                                const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-			       const std::string &mode,
-			       const std::string &device_type) {
+			       const std::string &mode) {
 
   // Extract a couple of global options.
   float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
   float status_period = conf.GetFloat("global", "statusperiod", 0.2);
-  bool mcs = conf.GetInteger("device-" + device_type, "mcs", 0) != 0;
-  bool stbc = conf.GetInteger("device-" + device_type, "stbc", 0) != 0;
-  bool ldpc = conf.GetInteger("device-" + device_type, "ldpc", 0) != 0;
 
   // If this is the ground side, get the host and port to send status messages to.
   std::shared_ptr<UDPDestination> udp_out;
@@ -149,9 +145,6 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	opts.link_type = DATA_LINK;
       }
       opts.data_rate = static_cast<uint8_t>(conf.GetInteger(section, "datarate", 18));
-      opts.mcs = mcs;
-      opts.stbc = stbc;
-      opts.ldpc = ldpc;
 
       // See if this link has a rate target specified.
       uint16_t rate_target = static_cast<uint16_t>(conf.GetInteger(section, "rate_target", 0));

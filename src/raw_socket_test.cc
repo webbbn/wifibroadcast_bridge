@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
 
     // Try to open the device
     RawSendSocket raw_send_sock(false);
-    if (raw_send_sock.add_device(device, true)) {
+    if (raw_send_sock.add_device(device, true, true, true, true)) {
       LOG_DEBUG << "Transmitting on interface: " << device;
     } else {
       LOG_DEBUG << "Error opening the raw socket for transmiting: " << device;
@@ -180,9 +180,6 @@ int main(int argc, char** argv) {
     while (1) {
       uint64_t t = time.usec();
       if ((t - send_time) >= period) {
-        bool mcs = true;
-        bool stbc = true;
-        bool ldpc = true;
         {
           std::shared_ptr<FECBlock> block = enc.get_next_block(length);
           if (!message.empty()) {
@@ -198,7 +195,7 @@ int main(int argc, char** argv) {
         for (std::shared_ptr<FECBlock> block = enc.get_block(); block;
              block = enc.get_block()) {
           raw_send_sock.send(block->pkt_data(), block->pkt_length(), port, DATA_LINK,
-                             datarate, mcs, stbc, ldpc);
+                             datarate);
         }
         if (period == 0) {
           break;

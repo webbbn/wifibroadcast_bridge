@@ -16,5 +16,4 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-			       const std::string &mode,
-			       const std::string &device_type);
+			       const std::string &mode);

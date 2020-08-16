@@ -50,8 +50,7 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	continue;
       }
       raw_send_sock.send(block->pkt_data(), block->pkt_length(), msg->port,
-			 msg->opts.link_type, msg->opts.data_rate, msg->opts.mcs,
-			 msg->opts.stbc, msg->opts.ldpc);
+			 msg->opts.link_type, msg->opts.data_rate);
       count += block->pkt_length();
       ++nblocks;
       trans_stats.add_send_time(cur_time() - send_start);

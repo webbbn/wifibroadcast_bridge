@@ -143,6 +143,19 @@ bool detect_network_devices(std::vector<std::string> &ifnames) {
   return true;
 }
 
+bool set_wifi_up_down(const std::string &device, bool up) {
+  int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0) {
+    return false;
+  }
+  struct ifreq ifr;
+  memset(&ifr, 0, sizeof ifr);
+  strncpy(ifr.ifr_name, device.c_str(),
+          std::min(static_cast<size_t>(IFNAMSIZ), device.length()));
+  ifr.ifr_flags = (up ? (ifr.ifr_flags | IFF_UP) : (ifr.ifr_flags & ~IFF_UP));
+  return (ioctl(sockfd, SIOCSIFFLAGS, &ifr) >= 0);
+}
+
 
 bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
 
@@ -177,6 +190,49 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
   return false;
 }
 
+bool set_wifi_monitor_mode(const std::string &device) {
+
+  /* The device must be down to change the mode */
+  if (!set_wifi_down(device)) {
+    return false;
+  }
+
+  /* Create the socket and connect to it. */
+  struct nl_sock *sckt = nl_socket_alloc();
+  genl_connect(sckt);
+
+  /* Allocate a new message. */
+  struct nl_msg *mesg = nlmsg_alloc();
+
+  /* Check /usr/include/linux/nl80211.h for a list of commands and attributes. */
+  enum nl80211_commands command = NL80211_CMD_SET_INTERFACE;
+
+  /* Create the message so it will send a command to the nl80211 interface. */
+  genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
+
+  /* Add specific attributes to change the frequency of the device. */
+  NLA_PUT_U32(mesg, NL80211_ATTR_IFINDEX, if_nametoindex(device.c_str()));
+  NLA_PUT_U32(mesg, NL80211_ATTR_IFTYPE, NL80211_IFTYPE_MONITOR);
+
+  /* Finally send it and receive the amount of bytes sent. */
+  nl_send_auto_complete(sckt, mesg);
+
+  /* Bring the device back up */
+  if (!set_wifi_up(device)) {
+    goto nla_put_failure;
+  }
+
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return true;
+
+ nla_put_failure:
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  printf("PUT Failure\n");
+  return false;
+}
+
 inline uint32_t cur_microseconds() {
   struct timeval t;
   gettimeofday(&t, 0);
@@ -194,14 +250,18 @@ inline uint16_t cur_milliseconds() {
  *****************************************************************************/
 
 RawSendSocket::RawSendSocket(bool ground, uint32_t send_buffer_size, uint32_t max_packet) :
-  m_ground(ground), m_max_packet(max_packet) {
+  m_ground(ground), m_mcs(false), m_stbc(false), m_ldpc(false), m_max_packet(max_packet) {
   size_t max_header = std::max(sizeof(radiotap_header_legacy), sizeof(radiotap_header_mcs));
 
   // Create the send buffer with the appropriate headers.
   m_send_buf.resize(max_header + sizeof(ieee_header_data) + max_packet);
 }
 
-bool RawSendSocket::add_device(const std::string &device, bool silent) {
+bool RawSendSocket::add_device(const std::string &device, bool silent,
+                               bool mcs, bool stbc, bool ldpc) {
+  m_mcs = mcs;
+  m_stbc = stbc;
+  m_ldpc = ldpc;
 
   m_sock = socket(AF_PACKET, SOCK_RAW, 0);
   if (m_sock == -1) {
@@ -285,11 +345,11 @@ bool RawSendSocket::add_device(const std::string &device, bool silent) {
 }
 
 bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
-			 uint8_t datarate, bool mcs, bool stbc, bool ldpc) {
+			 uint8_t datarate) {
 
   // Construct the radiotap header at the head of the packet.
   size_t rt_hlen = 0;
-  if (mcs) {
+  if (m_mcs) {
     rt_hlen = sizeof(radiotap_header_mcs);
     radiotap_header_mcs head;
     head.mcs_known = (IEEE80211_RADIOTAP_MCS_HAVE_MCS |
@@ -298,10 +358,10 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 		      IEEE80211_RADIOTAP_MCS_HAVE_STBC |
 		      IEEE80211_RADIOTAP_MCS_HAVE_FEC);
     head.mcs_flags = 0;
-    if(stbc) {
+    if(m_stbc) {
       head.mcs_flags |= IEEE80211_RADIOTAP_MCS_STBC_1;
     }
-    if(ldpc) {
+    if(m_ldpc) {
       head.mcs_flags |= IEEE80211_RADIOTAP_MCS_FEC_LDPC;
     }
     head.mcs_rate = datarate;
@@ -443,7 +503,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
       msg.data.clear();
       return true;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   if (retval < 0) {
     LOG_ERROR << "Error receiving from the raw data socket.";

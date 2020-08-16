@@ -37,6 +37,7 @@
 #include <udp_receive.hh>
 #include <wfb_bridge.hh>
 #include <raw_send_thread.hh>
+#include <udev_interface.hh>
 
 double last_packet_time = 0;
 
@@ -52,29 +53,21 @@ int main(int argc, char** argv) {
 
   std::string conf_file;
   std::string mode;
-  std::vector<std::string> devices;
   cxxopts::Options options(argv[0], "Allowed options");
   options.add_options()
     ("h,help", "produce help message")
     ("conf_file", "the path to the configuration file used for configuring ports",
      cxxopts::value<std::string>(conf_file))
     ("mode", "the mode (air|ground)", cxxopts::value<std::string>(mode))
-    ("devices", "the wifi devices to connect to (interface:type interface:type ...)",
-     cxxopts::value<std::vector<std::string> >(devices))
     ;
-  options.parse_positional({"conf_file", "mode", "devices"});
+  options.parse_positional({"conf_file", "mode"});
   auto result = options.parse(argc, argv);
   if (result.count("help") || !result.count("conf_file") ||
-      !result.count("mode") || devices.empty()) {
+      !result.count("mode")) {
     std::cout << options.help() << std::endl;
-    std::cout << "Positional parameters: <configuration file> <mode (air|ground) <devices>\n";
+    std::cout << "Positional parameters: <configuration file> <mode (air|ground)>\n";
     return EXIT_SUCCESS;
   }
-
-  // For now, just use the first device.
-  size_t colon = devices[0].find(":");
-  std::string device = devices[0].substr(0, colon);
-  std::string device_type = devices[0].substr(colon + 1, devices[0].size());
 
   // Parse the configuration file.
   INIReader conf(conf_file);
@@ -100,10 +93,8 @@ int main(int argc, char** argv) {
   root.addAppender(console);
   syslog->setThreshold(get_log_level(syslog_level));
   root.addAppender(syslog);
-  LOG_INFO << "wfb_bridge running in " << mode << " mode, connecting to " << device
-	   << " with device type " << device_type;
-  LOG_INFO << "logging '" << log_level << "' to console and '"
-	   << syslog_level << "' to syslog";
+  LOG_INFO << "wfb_bridge running in " << mode << " mode, logging '"
+           << log_level << "' to console and '" << syslog_level << "' to syslog";
 
   // Create the message queues.
   SharedQueue<std::shared_ptr<monitor_message_t> > inqueue;   // Wifi to UDP
@@ -117,9 +108,13 @@ int main(int argc, char** argv) {
   TransferStats trans_stats(mode);
   TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
 
+  // Create an interface to udev that monitors for wifi card insertions / deletions
+  bool reset_wifi = false;
+  UDevInterface udev(reset_wifi);
+  thrs.push_back(std::make_shared<std::thread>(std::thread(&UDevInterface::monitor_thread, &udev)));
+
   // Create the UDP -> raw socket interfaces
-  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other, mode,
-				 device_type)) {
+  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other, mode)) {
     return EXIT_FAILURE;
   }
 
@@ -182,40 +177,69 @@ int main(int argc, char** argv) {
 
   // Keep trying to connect/reconnect to the device
   while (1) {
-    bool terminate = false;
+    reset_wifi = false;
+
+    // Just use the first device for now.
+    const UDevInterface::DeviceList devices = udev.devices();
+    if (devices.empty()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      continue;
+    }
+    std::string device = devices[0].first;
+    std::string device_type = devices[0].second;
+
+    // Try to configure the interface
+    uint32_t freq = conf.GetInteger("device-" + device_type, "frequency", 2412);
+    LOG_INFO << "Configuring " << device << " in monitor mode at frequency " << freq
+             << " MHz";
+    if (!set_wifi_monitor_mode(device)) {
+      LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      continue;
+    }
+    if (!set_wifi_frequency(device, freq)) {
+      LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      continue;
+    }
 
     // Open the raw transmit socket
+    bool mcs = conf.GetInteger("device-" + device_type, "mcs", 0) != 0;
+    bool stbc = conf.GetInteger("device-" + device_type, "stbc", 0) != 0;
+    bool ldpc = conf.GetInteger("device-" + device_type, "ldpc", 0) != 0;
     RawSendSocket raw_send_sock((mode == "ground"));
     // Connect to the raw wifi interfaces.
-    if (raw_send_sock.add_device(device, true)) {
-      LOG_DEBUG << "Transmitting on interface: " << device;
+    if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
+      LOG_INFO << "Transmitting on interface: " << device << " of type " << device_type;
     } else {
-      LOG_DEBUG << "Error opening the raw socket for transmiting: " << device;
-      sleep(1);
+      LOG_ERROR << "Error opening the raw socket for transmiting: " << device
+                << " of type " << device_type;
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
       continue;
     }
 
     // Create a thread to send raw socket packets.
     auto send_th =
-      [&outqueue, &raw_send_sock, max_queue_size, &terminate, &trans_stats]() {
-      raw_send_thread(outqueue, raw_send_sock, max_queue_size, trans_stats, terminate);
+      [&outqueue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
+      raw_send_thread(outqueue, raw_send_sock, max_queue_size, trans_stats, reset_wifi);
     };
     std::thread send_thread(send_th);
 
     // Open the raw receive socket
     RawReceiveSocket raw_recv_sock((mode == "ground"));
     if (raw_recv_sock.add_device(device)) {
-      LOG_DEBUG << "Receiving on interface: " << device;
+      LOG_INFO << "Receiving on interface: " << device << " of type " << device_type;
     } else {
-      LOG_DEBUG << "Error opening the raw socket for receiving: " << device;
-      sleep(1);
+      LOG_ERROR << "Error opening the raw socket for receiving: " << device
+                << " of type " << device_type;
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
       continue;
     }
 
     // Create the raw socket receive thread
     auto recv =
-      [&raw_recv_sock, &inqueue, &terminate, &trans_stats, &trans_stats_other]() {
-	while(!terminate) {
+      [&raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other]() {
+	while(!reset_wifi) {
 	  std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
 	  if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
 
@@ -229,7 +253,7 @@ int main(int argc, char** argv) {
             }
 	  } else {
 	    // Error return, which likely means the wifi card went away
-	    terminate = true;
+	    reset_wifi = true;
 	  }
 	}
 	LOG_DEBUG << "Raw socket receive thread exiting";

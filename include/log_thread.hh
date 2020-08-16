@@ -7,14 +7,10 @@
 #include <wifibroadcast/transfer_stats.hh>
 
 struct WifiOptions {
-  WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18, bool m = false,
-	      bool s = false, bool l = false) :
-    link_type(type), data_rate(rate), mcs(m), stbc(s), ldpc(l) { }
+  WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18) :
+    link_type(type), data_rate(rate) { }
   LinkType link_type;
   uint8_t data_rate;
-  bool mcs;
-  bool stbc;
-  bool ldpc;
 };
 
 struct Message {

@@ -37,6 +37,14 @@ struct monitor_message_t {
 // Get a list of all the network device names
 bool detect_network_devices(std::vector<std::string> &ifnames);
 
+bool set_wifi_up_down(const std::string &device, bool up);
+inline bool set_wifi_up(const std::string &device) {
+  return set_wifi_up_down(device, true);
+}
+inline bool set_wifi_down(const std::string &device) {
+  return set_wifi_up_down(device, false);
+}
+bool set_wifi_monitor_mode(const std::string &device);
 bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz);
 
 class RawSendSocket {
@@ -47,18 +55,22 @@ public:
     return (m_sock < 0);
   }
 
-  bool add_device(const std::string &device, bool silent = true);
+  bool add_device(const std::string &device, bool silent = true,
+                  bool mcs = false, bool stbc = false, bool ldpc = false);
 
   // Copy the message into the send bufer and send it.
   bool send(const uint8_t *msg, size_t msglen, uint8_t port, LinkType type,
-	    uint8_t datarate = 18, bool mcs = false, bool stbc = false, bool ldpc = false);
+	    uint8_t datarate = 18);
   bool send(const std::vector<uint8_t> &msg, uint8_t port, LinkType type,
-	    uint8_t datarate = 18, bool mcs = false, bool stbc = false, bool ldpc = false) {
-    return send(msg.data(), msg.size(), port, type, datarate, mcs, stbc, ldpc);
+	    uint8_t datarate = 18) {
+    return send(msg.data(), msg.size(), port, type, datarate);
   }
 
 private:
   bool m_ground;
+  bool m_mcs;
+  bool m_stbc;
+  bool m_ldpc;
   uint32_t m_max_packet;
   uint32_t m_buffer_size;
   int m_sock;

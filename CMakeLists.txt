@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.9.20")
+set(VERSION "0.10.0")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -97,6 +97,10 @@ set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
 find_package(LibNL REQUIRED)
 include_directories(${LibNL_INCLUDE_DIR})
 
+# Find the udev library
+find_package(udev REQUIRED)
+include_directories(${UDEV_INCLUDE_DIR})
+
 # Add the radiotap source
 include_directories(src/radiotap)
 
@@ -120,9 +124,10 @@ add_executable(wfb_bridge
   src/udp_destination.cc
   src/log_thread.cc
   src/raw_send_thread.cc
+  src/udev_interface.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} wifibroadcast pthread)
+target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY}  wifibroadcast pthread)
 
 # Build the FEC test program
 add_executable(test_fec src/test_fec.cc)
