@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.10.0")
+set(VERSION "0.10.1")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)

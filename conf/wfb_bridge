@@ -48,7 +48,7 @@
 # 31        260   64-QAM
 
 [global]
-loglevel = debug
+loglevel = critical
 sysloglevel = info
 syslogperiod = 5
 statusperiod = 0.2
