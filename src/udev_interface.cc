@@ -33,14 +33,15 @@ UDevInterface::~UDevInterface() {
 
 std::string UDevInterface::card_type(udev_device *dev) {
   const char *driver = udev_device_get_property_value(dev, "ID_NET_DRIVER");
+  if (!driver) {
+    return std::string("");
+  }
   const char *model = udev_device_get_property_value(dev, "ID_MODEL_ID");
-  if (driver) {
-    LOG_DEBUG << "driver: " << driver;
-  }
+  std::string dev_model;
   if (model) {
-    LOG_DEBUG << "model: " << model;
+    dev_model = std::string(dev_model);
   }
-  auto itr = m_driver_map.find(std::make_pair(std::string(driver), std::string(model)));
+  auto itr = m_driver_map.find(std::make_pair(std::string(driver), dev_model));
   if (itr != m_driver_map.end()) {
     return itr->second;
   }
