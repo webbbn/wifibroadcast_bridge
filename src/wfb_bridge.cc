@@ -20,6 +20,7 @@
 #include <INIReader.h>
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -40,15 +41,6 @@
 #include <udev_interface.hh>
 
 double last_packet_time = 0;
-
-static void splitstr(const std::string& str, std::vector<std::string> &tokens, char delim) {
-  std::istringstream iss(str);
-  std::string token;
-  while (std::getline(iss, token, delim)) {
-    tokens.push_back(token);
-  }
-}
-
 
 int main(int argc, char** argv) {
 
@@ -175,8 +167,22 @@ int main(int argc, char** argv) {
         is_packed_status = true;
       }
 
-      // Create the packet queues
-      udp_send_queues[port].resize(outports.size());
+      // Create a file logger if requested
+      std::string archive_dir = conf.Get(group, "archive_outdir", "");
+      if (!archive_dir.empty()) {
+        // Create the packet queues with an additional queue for archiving
+        udp_send_queues[port].resize(outports.size());
+        // Spawn the archive thread.
+        std::shared_ptr<std::thread> archive_thread
+          (new std::thread
+           ([&udp_send_queues, port, archive_dir]() {
+              archive_loop(archive_dir, udp_send_queues[port].back());
+            }));
+        thrs.push_back(archive_thread);
+      } else {
+        // Create the packet queues without an additional queue for archiving
+        udp_send_queues[port].resize(outports.size());
+      }
 
       // Create the UDP output destinations.
       for (size_t op = 0; op < outports.size(); ++op) {
@@ -207,9 +213,6 @@ int main(int argc, char** argv) {
           thrs.push_back(udp_send_thr);
         }
       }
-
-      // Get the output filenames.
-      std::string outfnames  = conf.Get(group, "outfiles", "");
     }
   }
 

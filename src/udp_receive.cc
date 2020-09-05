@@ -3,6 +3,8 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
+#include <fstream>
+
 #include <logging.hh>
 #include <udp_send.hh>
 #include <udp_receive.hh>
@@ -53,6 +55,28 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t t
   return fd;
 }
 
+bool archive_loop(std::string archive_dir, PacketQueue &q) {
+
+  // Try to create the archive directory
+  if (!mkpath(archive_dir)) {
+    return false;
+  }
+
+  std::string archive_file = archive_dir + "/" + datetime() + ".dat";
+  LOG_INFO << "Archiving to " << archive_file;
+  std::ofstream of(archive_file, std::fstream::out | std::fstream::binary);
+  if (!of.good()) {
+    LOG_ERROR << "Error opening archive file: " << archive_file;
+    return false;
+  }
+
+  while (1) {
+    Packet msg = q.pop();
+    of.write(reinterpret_cast<const char*>(msg->data()), msg->size());
+  }
+
+  return true;
+}
 
 bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       std::vector<std::shared_ptr<std::thread> > &thrs,
@@ -159,10 +183,23 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	  return false;
 	}
 
+        // Create a file logger if requested
+        std::string archive_dir = conf.Get(section, "archive_indir", "");
+        std::shared_ptr<PacketQueue> archive_queue(new PacketQueue());
+        if (!archive_dir.empty()) {
+          // Spawn the archive thread.
+          std::shared_ptr<std::thread> archive_thread
+            (new std::thread
+             ([archive_queue, archive_dir]() {
+                archive_loop(archive_dir, *archive_queue);
+              }));
+          thrs.push_back(archive_thread);
+        }
+
 	// Create the receive thread for this socket
 	auto uth =
           [udp_sock, port, enc, opts, priority, blocksize, &outqueue, inport,
-           do_fec, rate_target]() {
+           do_fec, rate_target, archive_queue]() {
             bool flushed = true;
             double last_recv_time = 0;
             bool in_gap = false;
@@ -200,6 +237,11 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
                   flushed = false;
                   last_send_time = t;
                   send_msg.reset();
+                }
+
+                // send the data to the archiver if requested.
+                if (archive_queue) {
+                  archive_queue->push(mkpacket(msg->msg));
                 }
               }
 

@@ -47,6 +47,7 @@
 # 30        234   64-QAM
 # 31        260   64-QAM
 
+# Global parameters controlling logging, etc
 [global]
 loglevel = critical
 sysloglevel = info
@@ -54,6 +55,7 @@ syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200
 
+# Device entried, defining the parameters for different types of wifi devices
 [device-ar9271]
 frequency = 2412
 txpower = 45
@@ -77,8 +79,27 @@ mcs = 1
 stbc = 1
 ldpc = 1
 
+# UDP interface links
+#
+# The definition of all the UDP to UDP links across the wifi interface
+#
+# Supported configuration values:
+#
+# name - A textual name for the link
+# direction - (up/down) Is this data going up (ground to air) or down (air to ground)
+# port - A unique number (1-64) used to route the link
+# inport - The UDP receive port on the near side
+# outports - A comma separated list of host:port to send UDP packets to on the far end
+# archive_indir - Archive the entire stream received from UDP to a file in the directory specified
+# archive_outdir - Archive the entire stream received over wifi to a file in the directory specified
+# blocksize - The maximum size of a data block supported.
+# blocks - The number of data blocks in an FEC sequence
+# fec - The number of FEC blocks in an FEC sequence
+# priority - The priority order to send packets over the wifi link (not yet implemented)
+# datarate - The data rate (as specified above) to send this link over (if the driver supports variable rates)
+
 [link-video]
-nwiame = Video Downlink
+name = Video Downlink
 direction = down
 port = 1
 inport = 5600
