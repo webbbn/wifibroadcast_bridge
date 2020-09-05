@@ -49,7 +49,7 @@
 
 # Global parameters controlling logging, etc
 [global]
-loglevel = info
+loglevel = critical
 sysloglevel = info
 syslogperiod = 5
 statusperiod = 0.2
@@ -103,7 +103,7 @@ name = Video Downlink
 direction = down
 port = 1
 inport = 5600
-outports = 127.0.0.1:5600,192.168.20.1:5600
+outports = 127.0.0.1:5600
 blocksize = 1400
 blocks = 20
 fec = 8
