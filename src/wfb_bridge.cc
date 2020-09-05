@@ -185,33 +185,28 @@ int main(int argc, char** argv) {
       }
 
       // Create the UDP output destinations.
-      for (size_t op = 0; op < outports.size(); ++op) {
-        const auto &outp = outports[op];
-
-        // Split out the hostnames and ports
-        for (size_t i = 0; i < outports.size(); ++i) {
-          std::vector<std::string> host_port;
-          splitstr(outports[i], host_port, ':');
-          if (host_port.size() != 2) {
-            LOG_CRITICAL << "Invalid host:port specified in group: "
-                         << group << " (" << outports[i] << ")";
-            return EXIT_FAILURE;
-          }
-          const std::string &hostname = host_port[0];
-          uint16_t udp_port = atoi(host_port[1].c_str());
-          if (is_status) {
-            LOG_INFO << "Sending status to: " << hostname << ":" << udp_port;
-          }
-          if (is_packed_status) {
-            LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
-          }
-          // Create a UDP send thread for this output port
-          auto udp_send_thr = std::shared_ptr<std::thread>
-            (new std::thread([hostname, udp_port, port, op, &udp_send_queues]() {
-                               udp_send_loop(udp_send_queues[port][op], hostname, udp_port);
-                             }));
-          thrs.push_back(udp_send_thr);
+      for (size_t i = 0; i < outports.size(); ++i) {
+        std::vector<std::string> host_port;
+        splitstr(outports[i], host_port, ':');
+        if (host_port.size() != 2) {
+          LOG_CRITICAL << "Invalid host:port specified in group: "
+                       << group << " (" << outports[i] << ")";
+          return EXIT_FAILURE;
         }
+        const std::string &hostname = host_port[0];
+        uint16_t udp_port = atoi(host_port[1].c_str());
+        if (is_status) {
+          LOG_INFO << "Sending status to: " << hostname << ":" << udp_port;
+        }
+        if (is_packed_status) {
+          LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
+        }
+        // Create a UDP send thread for this output port
+        auto udp_send_thr = std::shared_ptr<std::thread>
+          (new std::thread([hostname, udp_port, port, i, &udp_send_queues]() {
+                             udp_send_loop(udp_send_queues[port][i], hostname, udp_port);
+                           }));
+        thrs.push_back(udp_send_thr);
       }
     }
   }

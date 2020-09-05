@@ -89,16 +89,7 @@ void udp_send_loop(PacketQueue &q, const std::string host, uint16_t port) {
   memset(&s, '\0', sizeof(struct sockaddr_in));
   s.sin_family = AF_INET;
   s.sin_port = (in_port_t)htons(port);
-
-  // Lookup the IP address from the hostname
-  std::string ip;
-  if (host != "") {
-    ip = hostname_to_ip(host);
-    s.sin_addr.s_addr = inet_addr(ip.c_str());
-  } else {
-    s.sin_addr.s_addr = INADDR_ANY;
-  }
-  s.sin_addr.s_addr = inet_addr(ip.c_str());
+  s.sin_addr.s_addr = inet_addr(host.c_str());
 
   while (1) {
     Packet msg = q.pop();
