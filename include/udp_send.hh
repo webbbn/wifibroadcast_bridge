@@ -8,12 +8,12 @@
 #include <wifibroadcast/transfer_stats.hh>
 #include <wifibroadcast/raw_socket.hh>
 #include <wifibroadcast/fec.hh>
-#include <udp_destination.hh>
 #include <wfb_bridge.hh>
 #include <shared_queue.hh>
 
-std::string hostname_to_ip(const std::string &hostname);
+void fec_decode_thread(MessageQueue &inqueue, std::vector<std::vector<PacketQueue> > &output_queues,
+                       TransferStats &stats, TransferStats &stats_other, uint8_t stats_port);
 
-void udp_send_loop(SharedQueue<std::shared_ptr<monitor_message_t> > &inqueue,
-		   const std::vector<std::shared_ptr<UDPDestination> > &udp_out,
-		   int send_sock, TransferStats &stats, TransferStats &stats_other);
+void udp_send_loop(PacketQueue &q, const std::string host, uint16_t port);
+
+std::string hostname_to_ip(const std::string &hostname);

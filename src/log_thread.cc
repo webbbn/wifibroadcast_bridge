@@ -26,16 +26,9 @@ uint32_t kbps(tmpl__T v1, tmpl__T v2, double time) {
 // Send status messages to the other radio and log the FEC stats periodically
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, std::shared_ptr<UDPDestination> udp_out,
-		std::shared_ptr<UDPDestination> packed_udp_out) {
+		std::shared_ptr<Message> msg, std::vector<PacketQueue> &log_out,
+                std::vector<PacketQueue> &packed_log_out) {
   bool is_ground = (stats.name() == "ground");
-
-  // Open the UDP send socket
-  int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (send_sock < 0) {
-    std::cerr << "Error opening the UDP send socket in log_thread.\n";
-    return;
-  }
 
   uint32_t loop_period =
     static_cast<uint32_t>(std::round(1000.0 * ((syslog_period == 0) ? status_period :
@@ -72,10 +65,15 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 
       // Send the local status out the UDP port
       std::string outmsg = stats.serialize();
-      udp_out->send(send_sock, reinterpret_cast<const uint8_t*>(outmsg.c_str()), outmsg.length());
+      {
+        Packet pkt = mkpacket(outmsg.c_str(), outmsg.c_str() + outmsg.length());
+        for (auto & q : log_out) {
+          q.push(pkt);
+        }
+      }
 
       // Create the packed status message and send it.
-      if (packed_udp_out) {
+      {
 	wifibroadcast_rx_status_forward_t rxs;
 	rxs.damaged_block_cnt = s.sequence_errors;
 	rxs.lost_packet_cnt = s.block_errors;
@@ -104,8 +102,11 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.adapter[0].current_signal_dbm = rssi;
 	rxs.adapter[0].type = 1;
 	rxs.adapter[0].signal_good = (rssi > -100);
-
-	udp_out->send(send_sock, reinterpret_cast<uint8_t*>(&rxs), sizeof(rxs));
+        Packet pkt = mkpacket(reinterpret_cast<uint8_t*>(&rxs),
+                              reinterpret_cast<uint8_t*>(&rxs) + sizeof(rxs));
+        for (auto &q : packed_log_out) {
+          q.push(pkt);
+        }
 	pps = s;
       }
 

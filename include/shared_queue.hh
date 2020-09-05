@@ -8,14 +8,17 @@
 template <typename tmpl__T>
 class SharedQueue {
 public:
-  SharedQueue() = default;
-  ~SharedQueue() = default;
+  SharedQueue() : m_mutex(new std::mutex), m_cond(new std::condition_variable) {}
+  ~SharedQueue() {
+    delete m_mutex;
+    delete m_cond;
+  }
 
   tmpl__T pop() {
-    std::unique_lock<std::mutex> lock_guard(m_mutex);
+    std::unique_lock<std::mutex> lock_guard(*m_mutex);
 
     while (m_queue.empty()) {
-      m_cond.wait(lock_guard);
+      m_cond->wait(lock_guard);
     }
 
     auto item = m_queue.front();
@@ -24,10 +27,10 @@ public:
   }
 
   void push(tmpl__T item) {
-    std::unique_lock<std::mutex> lock_guard(m_mutex);
+    std::unique_lock<std::mutex> lock_guard(*m_mutex);
     m_queue.push(item);
     lock_guard.unlock();
-    m_cond.notify_one();
+    m_cond->notify_one();
   }
 
   size_t size() const {
@@ -36,8 +39,8 @@ public:
 
 private:
   std::queue<tmpl__T> m_queue;
-  std::mutex m_mutex;
-  std::condition_variable m_cond;
+  std::mutex *m_mutex;
+  std::condition_variable *m_cond;
 };
 
 #endif // SHARED_QUEUE_HH

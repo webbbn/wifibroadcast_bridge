@@ -121,7 +121,6 @@ add_executable(wfb_bridge
   src/transfer_stats.cc
   src/udp_send.cc
   src/udp_receive.cc
-  src/udp_destination.cc
   src/log_thread.cc
   src/raw_send_thread.cc
   src/udev_interface.cc

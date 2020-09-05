@@ -168,7 +168,7 @@ datarate = 4
 name = Downlink port for link status messages
 direction = down
 port = 7
-outports = 127.0.0.1:5800
+outports = 127.0.0.1:5154
 blocksize = 1400
 type = data
 priority = 15
@@ -186,4 +186,4 @@ datarate = 0
 [link-packed_status_down]
 name = UDP port to send packed status messages to
 direction = down
-outports = 127.0.0.1:5154
+outports = 127.0.0.1:5800

@@ -59,28 +59,13 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
                                const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
+                               std::vector<PacketQueue> &log_out,
+                               std::vector<PacketQueue> &packed_log_out,
 			       const std::string &mode) {
 
   // Extract a couple of global options.
   float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
   float status_period = conf.GetFloat("global", "statusperiod", 0.2);
-
-  // If this is the ground side, get the host and port to send status messages to.
-  std::shared_ptr<UDPDestination> udp_out;
-  std::shared_ptr<UDPDestination> packed_udp_out;
-  if (mode == "ground") {
-    udp_out.reset(new UDPDestination(conf.Get("link-status_down", "outports", ""),
-				     std::shared_ptr<FECDecoder>()));
-    packed_udp_out.reset(new UDPDestination
-			 (conf.Get("link-packed_status_down", "outports", ""),
-			  std::shared_ptr<FECDecoder>()));
-  } else {
-    udp_out.reset(new UDPDestination(conf.Get("link-status_up", "outports", ""),
-				     std::shared_ptr<FECDecoder>()));
-    packed_udp_out.reset(new UDPDestination
-			 (conf.Get("link-packed_status_up", "outports", ""),
-			  std::shared_ptr<FECDecoder>()));
-  }
 
   // Create the the threads for receiving packets from UDP sockets
   // and relaying them to the raw socket interface.
@@ -155,9 +140,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 	// Create the stats logging thread.
 	std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
 	auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-		      &outqueue, msg, udp_out, packed_udp_out]() {
+		      &outqueue, msg, &log_out, &packed_log_out]() {
 	  log_thread(trans_stats, trans_stats_other, syslog_period, status_period, outqueue, msg,
-		     udp_out, packed_udp_out);
+                     log_out, packed_log_out);
 	};
 	thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
 

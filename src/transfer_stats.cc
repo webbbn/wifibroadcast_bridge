@@ -8,6 +8,8 @@
 
 #include <wifibroadcast/transfer_stats.hh>
 
+#include <logging.hh>
+
 
 const float prev_weight = 0.02;
 
@@ -91,7 +93,7 @@ bool parse_next(tmpl__T &v, std::istringstream &ss) {
   std::string token;
   if (std::getline(ss, token, ',')) {
     std::istringstream oss(token);
-    return (oss >> v).fail();
+    return !(oss >> v).fail();
   }
   return false;
 }

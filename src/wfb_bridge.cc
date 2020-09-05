@@ -41,6 +41,14 @@
 
 double last_packet_time = 0;
 
+static void splitstr(const std::string& str, std::vector<std::string> &tokens, char delim) {
+  std::istringstream iss(str);
+  std::string token;
+  while (std::getline(iss, token, delim)) {
+    tokens.push_back(token);
+  }
+}
+
 
 int main(int argc, char** argv) {
 
@@ -113,11 +121,6 @@ int main(int argc, char** argv) {
   UDevInterface udev(reset_wifi);
   thrs.push_back(std::make_shared<std::thread>(std::thread(&UDevInterface::monitor_thread, &udev)));
 
-  // Create the UDP -> raw socket interfaces
-  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other, mode)) {
-    return EXIT_FAILURE;
-  }
-
   // Open the UDP send socket
   int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
   if (send_sock < 0) {
@@ -131,8 +134,10 @@ int main(int argc, char** argv) {
   }
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
-  std::vector<std::shared_ptr<UDPDestination> > udp_out(64);
+  std::vector<std::vector<PacketQueue> > udp_send_queues(MAX_PORTS);
   const std::set<std::string> &sections = conf.Sections();
+  uint8_t status_port = 0;
+  uint8_t packed_status_port = 0;
   for (const auto &group : sections) {
 
     // Ignore sections that don't start with 'link-'
@@ -148,32 +153,79 @@ int main(int argc, char** argv) {
       // Get the name.
       std::string name = conf.Get(group, "name", "");
 
-      // Get the remote hostname/ip(s) and port(s)
-      std::string outports = conf.Get(group, "outports", "");
-
       // Get the port number (required).
       uint8_t port = static_cast<uint16_t>(conf.GetInteger(group, "port", 0));
-      if (port > 64) {
+      if (port > MAX_PORTS) {
 	LOG_CRITICAL << "Invalid port specified for " << name << "  (" << port << ")";
 	return EXIT_FAILURE;
       }
 
-      // Create the FEC decoder if requested.
-      std::shared_ptr<FECDecoder> dec(new FECDecoder());
-      if (port > 0) {
-	udp_out[port].reset(new UDPDestination(outports, dec));
-	// Is this the port that will receive status from the other side?
-	udp_out[port]->is_status((group == "status_down") || (group == "status_up"));
+      // Get the remote hostname/ip(s) and port(s)
+      std::string outports_str = conf.Get(group, "outports", "");
+      std::vector<std::string> outports;
+      splitstr(outports_str, outports, ',');
+      bool is_status = false;
+      bool is_packed_status = false;
+      if ((group == "link-status_down") || (group == "link-status_up")) {
+        status_port = port;
+        is_status = true;
       }
+      if ((group == "link-packed_status_down") || (group == "link-packed_status_up")) {
+        packed_status_port = port;
+        is_packed_status = true;
+      }
+
+      // Create the packet queues
+      udp_send_queues[port].resize(outports.size());
+
+      // Create the UDP output destinations.
+      for (size_t op = 0; op < outports.size(); ++op) {
+        const auto &outp = outports[op];
+
+        // Split out the hostnames and ports
+        for (size_t i = 0; i < outports.size(); ++i) {
+          std::vector<std::string> host_port;
+          splitstr(outports[i], host_port, ':');
+          if (host_port.size() != 2) {
+            LOG_CRITICAL << "Invalid host:port specified in group: "
+                         << group << " (" << outports[i] << ")";
+            return EXIT_FAILURE;
+          }
+          const std::string &hostname = host_port[0];
+          uint16_t udp_port = atoi(host_port[1].c_str());
+          if (is_status) {
+            LOG_INFO << "Sending status to: " << hostname << ":" << udp_port;
+          }
+          if (is_packed_status) {
+            LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
+          }
+          // Create a UDP send thread for this output port
+          auto udp_send_thr = std::shared_ptr<std::thread>
+            (new std::thread([hostname, udp_port, port, op, &udp_send_queues]() {
+                               udp_send_loop(udp_send_queues[port][op], hostname, udp_port);
+                             }));
+          thrs.push_back(udp_send_thr);
+        }
+      }
+
+      // Get the output filenames.
+      std::string outfnames  = conf.Get(group, "outfiles", "");
     }
   }
 
-  // Create the thread for retrieving messages from incoming raw socket queue
-  // and send the UDP packets.
-  auto usth = [&inqueue, &udp_out, send_sock, &trans_stats, &trans_stats_other]() {
-    udp_send_loop(inqueue, udp_out, send_sock, trans_stats, trans_stats_other);
-  };
+  // Create the thread for FEC decode and distributin the messages from incoming raw socket queue
+  auto usth = [&inqueue, &udp_send_queues, &trans_stats, &trans_stats_other, status_port]() {
+                fec_decode_thread(inqueue, udp_send_queues, trans_stats, trans_stats_other,
+                                  status_port);
+              };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
+
+  // Create the UDP -> raw socket interfaces
+  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other,
+                                 udp_send_queues[status_port], udp_send_queues[packed_status_port],
+                                 mode)) {
+    return EXIT_FAILURE;
+  }
 
   // Keep trying to connect/reconnect to the device
   while (1) {
