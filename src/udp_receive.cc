@@ -185,8 +185,9 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
         // Create a file logger if requested
         std::string archive_dir = conf.Get(section, "archive_indir", "");
-        std::shared_ptr<PacketQueue> archive_queue(new PacketQueue());
+        std::shared_ptr<PacketQueue> archive_queue;
         if (!archive_dir.empty()) {
+          archive_queue.reset(new PacketQueue());
           // Spawn the archive thread.
           std::shared_ptr<std::thread> archive_thread
             (new std::thread
