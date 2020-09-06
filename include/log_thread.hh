@@ -32,5 +32,4 @@ struct Message {
 
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, std::vector<PacketQueue> &log_out,
-                std::vector<PacketQueue> &packed_log_out);
+		std::shared_ptr<Message> msg, PacketQueues &log_out, PacketQueues &packed_log_out);

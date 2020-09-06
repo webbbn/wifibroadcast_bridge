@@ -9,7 +9,7 @@
 
 #include <log_thread.hh>
 
-bool archive_loop(std::string archive_dir, PacketQueue &q);
+bool archive_loop(std::string archive_dir, PacketQueueP q);
 
 int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t timeout_us);
 
@@ -18,6 +18,6 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-                               std::vector<PacketQueue> &log_out,
-                               std::vector<PacketQueue> &packed_log_out,
+                               PacketQueues &log_out,
+                               PacketQueues &packed_log_out,
 			       const std::string &mode);

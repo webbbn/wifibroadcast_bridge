@@ -11,6 +11,7 @@
 #include <shared_queue.hh>
 
 #define MAX_PORTS 64
+#define MAX_PACKET_QUEUE_SIZE 100
 
 inline double cur_time() {
   struct timeval t;
@@ -20,7 +21,9 @@ inline double cur_time() {
 
 typedef SharedQueue<std::shared_ptr<struct monitor_message_t> > MessageQueue;
 typedef std::shared_ptr<std::vector<uint8_t> > Packet;
-typedef SharedQueue<Packet> PacketQueue;
+typedef SharedQueue<Packet>  PacketQueue;
+typedef std::shared_ptr<PacketQueue> PacketQueueP;
+typedef std::vector<PacketQueueP> PacketQueues;
 inline Packet mkpacket(size_t size) {
   return Packet(new std::vector<uint8_t>(size));
 }

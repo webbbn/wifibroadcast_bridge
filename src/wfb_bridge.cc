@@ -97,8 +97,8 @@ int main(int argc, char** argv) {
            << log_level << "' to console and '" << syslog_level << "' to syslog";
 
   // Create the message queues.
-  SharedQueue<std::shared_ptr<monitor_message_t> > inqueue;   // Wifi to UDP
-  SharedQueue<std::shared_ptr<Message> > outqueue;  // UDP to Wifi
+  SharedQueue<std::shared_ptr<monitor_message_t> > inqueue(MAX_PACKET_QUEUE_SIZE);   // Wifi to UDP
+  SharedQueue<std::shared_ptr<Message> > outqueue(MAX_PACKET_QUEUE_SIZE);  // UDP to Wifi
 
   // Maintain a list of all the threads
   std::vector<std::shared_ptr<std::thread> > thrs;
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
   }
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
-  std::vector<std::vector<PacketQueue> > udp_send_queues(MAX_PORTS);
+  PacketQueues udp_send_queues[MAX_PORTS];
   const std::set<std::string> &sections = conf.Sections();
   uint8_t status_port = 0;
   uint8_t packed_status_port = 0;
@@ -170,18 +170,12 @@ int main(int argc, char** argv) {
       // Create a file logger if requested
       std::string archive_dir = conf.Get(group, "archive_outdir", "");
       if (!archive_dir.empty()) {
-        // Create the packet queues with an additional queue for archiving
-        udp_send_queues[port].resize(outports.size());
+        PacketQueueP q(new PacketQueue(1000));
+        udp_send_queues[port].push_back(q);
         // Spawn the archive thread.
         std::shared_ptr<std::thread> archive_thread
-          (new std::thread
-           ([&udp_send_queues, port, archive_dir]() {
-              archive_loop(archive_dir, udp_send_queues[port].back());
-            }));
+          (new std::thread([q, port, archive_dir]() { archive_loop(archive_dir, q); }));
         thrs.push_back(archive_thread);
-      } else {
-        // Create the packet queues without an additional queue for archiving
-        udp_send_queues[port].resize(outports.size());
       }
 
       // Create the UDP output destinations.
@@ -201,10 +195,12 @@ int main(int argc, char** argv) {
         if (is_packed_status) {
           LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
         }
+        PacketQueueP q(new PacketQueue(MAX_PACKET_QUEUE_SIZE, true));
+        udp_send_queues[port].push_back(q);
         // Create a UDP send thread for this output port
         auto udp_send_thr = std::shared_ptr<std::thread>
-          (new std::thread([hostname, udp_port, port, i, &udp_send_queues]() {
-                             udp_send_loop(udp_send_queues[port][i], hostname, udp_port);
+          (new std::thread([hostname, udp_port, port, i, q]() {
+                             udp_send_loop(q, hostname, udp_port);
                            }));
         thrs.push_back(udp_send_thr);
       }

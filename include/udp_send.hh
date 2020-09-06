@@ -11,9 +11,9 @@
 #include <wfb_bridge.hh>
 #include <shared_queue.hh>
 
-void fec_decode_thread(MessageQueue &inqueue, std::vector<std::vector<PacketQueue> > &output_queues,
+void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
                        TransferStats &stats, TransferStats &stats_other, uint8_t stats_port);
 
-void udp_send_loop(PacketQueue &q, const std::string host, uint16_t port);
+void udp_send_loop(PacketQueueP q, const std::string host, uint16_t port);
 
 std::string hostname_to_ip(const std::string &hostname);

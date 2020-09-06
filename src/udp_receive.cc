@@ -55,7 +55,7 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t t
   return fd;
 }
 
-bool archive_loop(std::string archive_dir, PacketQueue &q) {
+bool archive_loop(std::string archive_dir, PacketQueueP q) {
 
   // Try to create the archive directory
   if (!mkpath(archive_dir)) {
@@ -71,7 +71,7 @@ bool archive_loop(std::string archive_dir, PacketQueue &q) {
   }
 
   while (1) {
-    Packet msg = q.pop();
+    Packet msg = q->pop();
     of.write(reinterpret_cast<const char*>(msg->data()), msg->size());
   }
 
@@ -83,8 +83,8 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
                                const INIReader &conf,
 			       TransferStats &trans_stats,
 			       TransferStats &trans_stats_other,
-                               std::vector<PacketQueue> &log_out,
-                               std::vector<PacketQueue> &packed_log_out,
+                               PacketQueues &log_out,
+                               PacketQueues &packed_log_out,
 			       const std::string &mode) {
 
   // Extract a couple of global options.
@@ -185,14 +185,14 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
         // Create a file logger if requested
         std::string archive_dir = conf.Get(section, "archive_indir", "");
-        std::shared_ptr<PacketQueue> archive_queue;
+        PacketQueueP archive_queue;
         if (!archive_dir.empty()) {
-          archive_queue.reset(new PacketQueue());
+          archive_queue.reset(new PacketQueue(MAX_PACKET_QUEUE_SIZE, true));
           // Spawn the archive thread.
           std::shared_ptr<std::thread> archive_thread
             (new std::thread
              ([archive_queue, archive_dir]() {
-                archive_loop(archive_dir, *archive_queue);
+                archive_loop(archive_dir, archive_queue);
               }));
           thrs.push_back(archive_thread);
         }

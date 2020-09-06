@@ -26,8 +26,8 @@ uint32_t kbps(tmpl__T v1, tmpl__T v2, double time) {
 // Send status messages to the other radio and log the FEC stats periodically
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, std::vector<PacketQueue> &log_out,
-                std::vector<PacketQueue> &packed_log_out) {
+		std::shared_ptr<Message> msg, PacketQueues &log_out,
+                PacketQueues &packed_log_out) {
   bool is_ground = (stats.name() == "ground");
 
   uint32_t loop_period =
@@ -67,8 +67,8 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       std::string outmsg = stats.serialize();
       {
         Packet pkt = mkpacket(outmsg.c_str(), outmsg.c_str() + outmsg.length());
-        for (auto & q : log_out) {
-          q.push(pkt);
+        for (auto q : log_out) {
+          q->push(pkt);
         }
       }
 
@@ -104,8 +104,8 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.adapter[0].signal_good = (rssi > -100);
         Packet pkt = mkpacket(reinterpret_cast<uint8_t*>(&rxs),
                               reinterpret_cast<uint8_t*>(&rxs) + sizeof(rxs));
-        for (auto &q : packed_log_out) {
-          q.push(pkt);
+        for (auto q : packed_log_out) {
+          q->push(pkt);
         }
 	pps = s;
       }

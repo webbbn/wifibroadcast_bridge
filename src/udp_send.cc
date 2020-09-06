@@ -8,7 +8,7 @@
 #include <logging.hh>
 
 // Retrieve messages from incoming raw socket queue and send the UDP packets.
-void fec_decode_thread(MessageQueue &inqueue, std::vector<std::vector<PacketQueue> > &output_queues,
+void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
                        TransferStats &stats, TransferStats &stats_other, uint8_t stats_port) {
   double prev_time = cur_time();
   size_t write_errors = 0;
@@ -34,10 +34,9 @@ void fec_decode_thread(MessageQueue &inqueue, std::vector<std::vector<PacketQueu
     for (std::shared_ptr<FECBlock> block = dec.get_block(); block; block = dec.get_block()) {
       if (block->data_length() > 0) {
         Packet pkt = mkpacket(block->data(), block->data() + block->data_length());
-        for (auto &q : output_queues[port]) {
-          q.push(pkt);
+        for (auto q : output_queues[port]) {
+          q->push(pkt);
         }
-
 	// If this is a link status message, parse it and update the stats.
 	if (port == stats_port) {
 	  std::string s(block->data(), block->data() + block->data_length());
@@ -70,7 +69,7 @@ std::string hostname_to_ip(const std::string &hostname) {
   return "";
 }
 
-void udp_send_loop(PacketQueue &q, const std::string host, uint16_t port) {
+void udp_send_loop(PacketQueueP q, const std::string host, uint16_t port) {
 
   // Open the socket
   int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -92,7 +91,7 @@ void udp_send_loop(PacketQueue &q, const std::string host, uint16_t port) {
   s.sin_addr.s_addr = inet_addr(host.c_str());
 
   while (1) {
-    Packet msg = q.pop();
+    Packet msg = q->pop();
     sendto(send_sock, msg->data(), msg->size(), 0,
            (struct sockaddr *)&(s), sizeof(struct sockaddr_in));
   }
