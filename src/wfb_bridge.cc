@@ -97,8 +97,8 @@ int main(int argc, char** argv) {
            << log_level << "' to console and '" << syslog_level << "' to syslog";
 
   // Create the message queues.
-  SharedQueue<std::shared_ptr<monitor_message_t> > inqueue(MAX_PACKET_QUEUE_SIZE);   // Wifi to UDP
-  SharedQueue<std::shared_ptr<Message> > outqueue(MAX_PACKET_QUEUE_SIZE);  // UDP to Wifi
+  SharedQueue<std::shared_ptr<monitor_message_t> > inqueue(max_queue_size);   // Wifi to UDP
+  SharedQueue<std::shared_ptr<Message> > outqueue(max_queue_size);  // UDP to Wifi
 
   // Maintain a list of all the threads
   std::vector<std::shared_ptr<std::thread> > thrs;
@@ -195,7 +195,7 @@ int main(int argc, char** argv) {
         if (is_packed_status) {
           LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
         }
-        PacketQueueP q(new PacketQueue(MAX_PACKET_QUEUE_SIZE, true));
+        PacketQueueP q(new PacketQueue(max_queue_size, true));
         udp_send_queues[port].push_back(q);
         // Create a UDP send thread for this output port
         auto udp_send_thr = std::shared_ptr<std::thread>
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
   // Create the UDP -> raw socket interfaces
   if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other,
                                  udp_send_queues[status_port], udp_send_queues[packed_status_port],
-                                 mode)) {
+                                 mode, max_queue_size)) {
     return EXIT_FAILURE;
   }
 

@@ -11,7 +11,6 @@
 #include <shared_queue.hh>
 
 #define MAX_PORTS 64
-#define MAX_PACKET_QUEUE_SIZE 100
 
 inline double cur_time() {
   struct timeval t;

@@ -20,4 +20,5 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       TransferStats &trans_stats_other,
                                PacketQueues &log_out,
                                PacketQueues &packed_log_out,
-			       const std::string &mode);
+			       const std::string &mode,
+                               uint32_t max_queue_size);

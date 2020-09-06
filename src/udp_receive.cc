@@ -85,7 +85,8 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 			       TransferStats &trans_stats_other,
                                PacketQueues &log_out,
                                PacketQueues &packed_log_out,
-			       const std::string &mode) {
+			       const std::string &mode,
+                               uint32_t max_queue_size) {
 
   // Extract a couple of global options.
   float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
@@ -187,7 +188,7 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
         std::string archive_dir = conf.Get(section, "archive_indir", "");
         PacketQueueP archive_queue;
         if (!archive_dir.empty()) {
-          archive_queue.reset(new PacketQueue(MAX_PACKET_QUEUE_SIZE, true));
+          archive_queue.reset(new PacketQueue(max_queue_size, true));
           // Spawn the archive thread.
           std::shared_ptr<std::thread> archive_thread
             (new std::thread
