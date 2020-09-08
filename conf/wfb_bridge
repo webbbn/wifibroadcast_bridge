@@ -49,7 +49,7 @@
 
 # Global parameters controlling logging, etc
 [global]
-loglevel = info
+loglevel = critical
 sysloglevel = info
 syslogperiod = 5
 statusperiod = 0.2
@@ -102,27 +102,24 @@ ldpc = 1
 #   relay - All received packets will be re-transmitted on these devices (currently only one supported)
 #   ignore - These devices will not be configured at all
 #
-[device-wlxac64cfa45a00]
-type = relay
-frequency = 5825
-txpower = 45
-mcs = 1
-stbc = 1
-ldpc = 1
+# [device-wlx9c5c8eb5485a]
+# type = relay
+# frequency = 5825
+# txpower = 45
+# mcs = 1
+# stbc = 1
+# ldpc = 1
 
-[device-wlx9c5c8eb50353]
-type = transceiver
-frequency = 5280
-txpower = 45
-mcs = 1
-stbc = 1
-ldpc = 1
+# [device-wlx00e04ca1c8ff]
+# type = transceiver
+# frequency = 5280
+# txpower = 45
+# mcs = 1
+# stbc = 1
+# ldpc = 1
 
-[devices-wlx00e04c115d7c]
-type = ignore
-
-[devices-wlp6s0]
-type = ignore
+# [devices-wlan0]
+# type = ignore
 
 # UDP interface links
 #
