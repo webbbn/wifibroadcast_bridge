@@ -490,7 +490,7 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   return true;
 }
 
-bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<double> timeout) {
+bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<double> timeout) const {
   struct pcap_pkthdr *pcap_packet_header = NULL;
   uint8_t const *pcap_packet_data = NULL;
 
@@ -515,16 +515,20 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
   uint16_t rt_header_len = (pcap_packet_data[3] << 8) + pcap_packet_data[2];
 
   // check for packet type and set headerlen accordingly
+  int n80211HeaderLength;
   pcap_packet_data += rt_header_len;
   switch (pcap_packet_data[1]) {
   case 0x01: // data short, rts
-    m_n80211HeaderLength = 0x05;
+    n80211HeaderLength = 0x05;
+    msg.link_type = SHORT_DATA_LINK;
     break;
   case 0x02: // data
-    m_n80211HeaderLength = 0x18;
+    n80211HeaderLength = 0x18;
+    msg.link_type = DATA_LINK;
     break;
   default:
-    break;
+    LOG_ERROR << "Invalid packet type: " << pcap_packet_data[1];
+    return false;
   }
 
   // Extract the port out of the ieee header
@@ -532,7 +536,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
 
   // Extract the time stamp and queue size out of the header of data packets
   uint32_t cur_time = cur_milliseconds();
-  if (m_n80211HeaderLength > 5) {
+  if (n80211HeaderLength > 5) {
     uint32_t send_time = pcap_packet_data[5];
     msg.latency_ms = (send_time < cur_time) ? (cur_time - send_time) :
       (cur_time + 256 - send_time);
@@ -542,7 +546,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
   // Skip past the radiotap header.
   pcap_packet_data -= rt_header_len;
 
-  if (pcap_packet_header->len < static_cast<uint32_t>(rt_header_len + m_n80211HeaderLength)) {
+  if (pcap_packet_header->len < static_cast<uint32_t>(rt_header_len + n80211HeaderLength)) {
     LOG_ERROR << "rx ERROR: ppcapheaderlen < u16headerlen + n80211headerlen";
     return false;
   }
@@ -593,7 +597,7 @@ bool RawReceiveSocket::receive(monitor_message_t &msg, std::chrono::duration<dou
 
   // Copy the data into the message buffer.
   const uint32_t crc_len = 4;
-  uint32_t header_len = rt_header_len + m_n80211HeaderLength;
+  uint32_t header_len = rt_header_len + n80211HeaderLength;
   uint32_t packet_len = pcap_packet_header->len - header_len - crc_len;
   msg.data.resize(packet_len);
   std::copy(pcap_packet_data + header_len, pcap_packet_data + header_len + packet_len,

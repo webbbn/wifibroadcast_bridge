@@ -5,7 +5,7 @@
 #include <raw_send_thread.hh>
 
 void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
-		     RawSendSocket &raw_send_sock, uint16_t max_queue_size,
+		     RawSendSocket raw_send_sock, uint16_t max_queue_size,
 		     TransferStats &trans_stats, bool &terminate) {
 
   // Send message out of the send queue
@@ -60,5 +60,21 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
     double cur = cur_time();
     double loop_time = cur - loop_start;
     trans_stats.add_send_stats(count, nblocks, dropped_blocks, queue_size, flush, loop_time);
+  }
+}
+
+void raw_relay_thread(std::shared_ptr<SharedQueue<std::shared_ptr<monitor_message_t> > > relay_q,
+                      RawSendSocket raw_send_sock, uint16_t max_queue_size,
+                      bool &terminate) {
+
+  // Send message out of the send queue
+  while(!terminate) {
+
+    // Pull the next packet off the queue
+    std::shared_ptr<monitor_message_t> msg = relay_q->pop();
+    if (msg->data.size() > 0) {
+      raw_send_sock.send(msg->data.data(), msg->data.size(), msg->port,
+                         msg->link_type, msg->rate);
+    }
   }
 }

@@ -17,11 +17,11 @@ enum LinkType {
 
 struct monitor_message_t {
   monitor_message_t(size_t data_size = 0) :
-    data(data_size), port(0), link_type(0), rssi(0), rate(0), channel(0),
+    data(data_size), port(0), link_type(DATA_LINK), rssi(0), rate(0), channel(0),
     channel_flag(0), radiotap_flags(0) {}
   std::vector<uint8_t> data;
   uint8_t port;
-  uint8_t link_type;
+  LinkType link_type;
   uint8_t rate;
   uint16_t channel;
   uint16_t channel_flag;
@@ -84,14 +84,13 @@ public:
 
   bool add_device(const std::string &device);
 
-  bool receive(monitor_message_t &msg, std::chrono::duration<double> timeout);
+  bool receive(monitor_message_t &msg, std::chrono::duration<double> timeout) const;
 
 private:
   bool m_ground;
   uint32_t m_max_packet;
   pcap_t *m_ppcap;
   int m_selectable_fd;
-  int m_n80211HeaderLength;
 };
 
 #endif // RAW_SOCKET_HH

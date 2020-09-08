@@ -42,6 +42,11 @@
 
 double last_packet_time = 0;
 
+std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
+bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
+                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc);
+
+
 int main(int argc, char** argv) {
 
   // Ensure we've running with root privileges
@@ -221,99 +226,253 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  // Keep trying to connect/reconnect to the device
+  // Keep trying to connect/reconnect to the devices
+  std::set<std::string> current_devices;
+  std::string transmit_device;
+  std::string receive_device;
+  std::shared_ptr<std::thread> send_thread;
+  std::shared_ptr<std::thread> recv_thread;
+  std::shared_ptr<std::thread> relay_thread;
+  std::shared_ptr<SharedQueue<std::shared_ptr<monitor_message_t> > > relay_queue;
   while (1) {
     reset_wifi = false;
 
-    // Just use the first device for now.
-    const UDevInterface::DeviceList devices = udev.devices();
-    if (devices.empty()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      continue;
+    // Query the list of devices until we detect a change
+    const UDevInterface::DeviceList &devices = udev.devices();
+    bool change = (devices.size() != current_devices.size());
+    if (!change) {
+      for (const auto &device : devices) {
+        if (current_devices.find(device.first) == current_devices.end()) {
+          change = true;
+          break;
+        }
+      }
     }
-    std::string device = devices[0].first;
-    std::string device_type = devices[0].second;
-
-    // Try to configure the interface
-    uint32_t freq = conf.GetInteger("device-" + device_type, "frequency", 2412);
-    LOG_INFO << "Configuring " << device << " in monitor mode at frequency " << freq
-             << " MHz";
-    if (!set_wifi_monitor_mode(device)) {
-      LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      continue;
-    }
-    if (!set_wifi_frequency(device, freq)) {
-      LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+    if (!change) {
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
       continue;
     }
 
-    // Open the raw transmit socket
-    bool mcs = conf.GetInteger("device-" + device_type, "mcs", 0) != 0;
-    bool stbc = conf.GetInteger("device-" + device_type, "stbc", 0) != 0;
-    bool ldpc = conf.GetInteger("device-" + device_type, "ldpc", 0) != 0;
-    RawSendSocket raw_send_sock((mode == "ground"));
-    // Connect to the raw wifi interfaces.
-    if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
-      LOG_INFO << "Transmitting on interface: " << device << " of type " << device_type;
-    } else {
-      LOG_ERROR << "Error opening the raw socket for transmiting: " << device
-                << " of type " << device_type;
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      continue;
+    // Terminate all the current send/receive threads
+    reset_wifi = true;
+    if (recv_thread) {
+      recv_thread->join();
+      recv_thread.reset();
+    }
+    if (send_thread) {
+      outqueue.push(std::shared_ptr<Message>(new Message()));
+      send_thread->join();
+      send_thread.reset();
+    }
+    if (relay_thread) {
+      relay_queue->push(std::shared_ptr<monitor_message_t>(new monitor_message_t));
+      relay_thread->join();
+      relay_thread.reset();
+    }
+    transmit_device.clear();
+    receive_device.clear();
+    reset_wifi = false;
+
+    // Update the device list
+    current_devices.clear();
+    for (const auto &dev : devices) {
+      current_devices.insert(dev.first);
     }
 
-    // Create a thread to send raw socket packets.
-    auto send_th =
-      [&outqueue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
-      raw_send_thread(outqueue, raw_send_sock, max_queue_size, trans_stats, reset_wifi);
-    };
-    std::thread send_thread(send_th);
+    // Configure the transmit threads as appropriate
+    for (const auto &dev : devices) {
+      std::string device = dev.first;
+      std::string device_type = dev.second;
 
-    // Open the raw receive socket
-    RawReceiveSocket raw_recv_sock((mode == "ground"));
-    if (raw_recv_sock.add_device(device)) {
-      LOG_INFO << "Receiving on interface: " << device << " of type " << device_type;
-    } else {
-      LOG_ERROR << "Error opening the raw socket for receiving: " << device
-                << " of type " << device_type;
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      continue;
+      // Configure that device if appropriate for this mode
+      bool mcs, stbc, ldpc;
+      if (!configure_device(device, device_type, true, false, conf,  mcs, stbc, ldpc)) {
+        continue;
+      }
+
+      // Create the raw socket
+      RawSendSocket raw_send_sock((mode == "ground"));
+
+      // Connect to the raw wifi interfaces.
+      if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
+        LOG_INFO << "Transmitting on interface: " << device << " of type " << device_type;
+      } else {
+        LOG_ERROR << "Error opening the raw socket for transmiting: " << device
+                  << " of type " << device_type;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        continue;
+      }
+
+      // Create a thread to send raw socket packets.
+      auto send_th =
+        [&outqueue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
+          raw_send_thread(outqueue, raw_send_sock, max_queue_size, trans_stats, reset_wifi);
+          LOG_INFO << "Raw socket transmit thread exiting";
+        };
+      send_thread.reset(new std::thread(send_th));
+      transmit_device = device;
+      break;
     }
 
-    // Create the raw socket receive thread
-    auto recv =
-      [&raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other]() {
-	while(!reset_wifi) {
-	  std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
-	  if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
+    // Configure the relay threads as appropriate
+    for (const auto &dev : devices) {
+      std::string device = dev.first;
+      std::string device_type = dev.second;
 
-	    // Did we stop receiving packets?
-	    if (msg->data.empty()) {
-	      trans_stats.timeout();
-	      trans_stats_other.timeout();
-	    } else {
-              inqueue.push(msg);
-              last_packet_time = cur_time();
+      // Configure that device if appropriate for this mode
+      bool mcs, stbc, ldpc;
+      if (!configure_device(device, device_type, false, true, conf,  mcs, stbc, ldpc)) {
+        continue;
+      }
+
+      // Create the raw socket
+      RawSendSocket raw_send_sock((mode == "ground"));
+
+      // Connect to the raw wifi interfaces.
+      if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
+        LOG_INFO << "Relaying on interface: " << device << " of type " << device_type;
+      } else {
+        LOG_ERROR << "Error opening the raw socket for relaying: " << device
+                  << " of type " << device_type;
+        continue;
+      }
+
+      // Create a thread to send raw socket packets.
+      relay_queue = std::shared_ptr<SharedQueue<std::shared_ptr<monitor_message_t> > >
+        (new SharedQueue<std::shared_ptr<monitor_message_t> >(max_queue_size));
+      auto relay_th =
+        [relay_queue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
+          raw_relay_thread(relay_queue, raw_send_sock, max_queue_size, reset_wifi);
+          LOG_INFO << "Raw socket relay thread exiting";
+        };
+      relay_thread = std::make_shared<std::thread>(std::thread(relay_th));
+      break;
+    }
+
+    // Configure receive device threads as appropriate
+    for (const auto &dev : devices) {
+      std::string device = dev.first;
+      std::string device_type = dev.second;
+
+      // Configure that device if appropriate for this mode
+      bool mcs, stbc, ldpc;
+      if (!configure_device(device, device_type, false, false, conf,  mcs, stbc, ldpc)) {
+        continue;
+      }
+
+      // Open the raw receive socket
+      RawReceiveSocket raw_recv_sock((mode == "ground"));
+      if (raw_recv_sock.add_device(device)) {
+        LOG_INFO << "Receiving on interface: " << device << " of type " << device_type;
+      } else {
+        LOG_ERROR << "Error opening the raw socket for receiving: " << device
+                  << " of type " << device_type;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        continue;
+      }
+
+      // Create the raw socket receive thread
+      auto recv =
+        [raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other, relay_queue]() {
+          while(!reset_wifi) {
+            std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
+            if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
+
+              // Did we stop receiving packets?
+              if (msg->data.empty()) {
+                trans_stats.timeout();
+                trans_stats_other.timeout();
+              } else {
+                inqueue.push(msg);
+                if (relay_queue) {
+                  relay_queue->push(msg);
+                }
+                last_packet_time = cur_time();
+              }
+            } else {
+              // Error return, which likely means the wifi card went away
+              reset_wifi = true;
             }
-	  } else {
-	    // Error return, which likely means the wifi card went away
-	    reset_wifi = true;
-	  }
-	}
-	LOG_DEBUG << "Raw socket receive thread exiting";
-    };
-    std::thread recv_thread(recv);
+          }
+          LOG_INFO << "Raw socket receive thread exiting";
+        };
+      recv_thread.reset(new std::thread(recv));
+      receive_device = device;
+      break;
+    }
 
+/*
     // Join on the send and receive threads, which should terminate if/when the device is removed.
-    recv_thread.join();
-    LOG_DEBUG << "Raw receive send thread has terminated.";
+    recv_thread->join();
+    LOG_INFO << "Raw receive send thread has terminated.";
     // Force the send thread to terminate.
     outqueue.push(std::shared_ptr<Message>(new Message()));
-    send_thread.join();
-    LOG_DEBUG << "Raw socket send thread has terminated.";
+    send_thread->join();
+    LOG_INFO << "Raw socket send thread has terminated.";
+    relay_queue->push(std::shared_ptr<monitor_message_t>(new monitor_message_t));
+    relay_thread->join();
+*/
   }
 
   return EXIT_SUCCESS;
+}
+
+std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field) {
+  std::string val = conf.Get("devices", field, "");
+  std::vector<std::string> split;
+  splitstr(val, split, ',');
+  std::set<std::string> ret;
+  for (auto &s : split) {
+    ret.insert(s);
+  }
+  return ret;
+}
+
+bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
+                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc) {
+  // Ensure the device type is proper for the requested configuration
+  std::string type = conf.Get("device-" + device, "type", "unspecified");
+  bool ignore = (type == "ignore");
+  bool is_relay = (type == "relay");
+  bool is_transmitter = (type == "transmitter");
+  bool is_receiver = (type == "receiver");
+  bool is_unspecified = (type == "unspecified");
+  if (ignore ||
+      (transmit && (is_receiver || is_relay)) ||
+      (!transmit && (is_transmitter || (is_relay && !relay))) ||
+      (relay && !is_relay)) {
+    return false;
+  }
+  // Lookup the specific device configuration first
+  uint32_t freq = conf.GetInteger("device-" + device, "frequency", 0);
+  if (freq == 0) {
+    freq = conf.GetInteger("device-" + device_type, "frequency", 2412);
+  }
+  int mcs_mode = conf.GetInteger("device-" + device, "mcs", -1);
+  if (mcs_mode == -1) {
+    mcs_mode = conf.GetInteger("device-" + device_type, "mcs", 0);
+  }
+  mcs = (mcs_mode == 1);
+  int stbc_mode = conf.GetInteger("device-" + device, "stbc", -1);
+  if (stbc_mode == -1) {
+    stbc_mode = conf.GetInteger("device-" + device_type, "stbc", 0);
+  }
+  stbc = (stbc_mode == 1);
+  int ldpc_mode = conf.GetInteger("device-" + device, "ldpc", -1);
+  if (ldpc_mode == -1) {
+    ldpc_mode = conf.GetInteger("device-" + device_type, "ldpc", 0);
+  }
+  ldpc = (ldpc_mode == 1);
+  LOG_INFO << "Configuring " << device << " (type=" << type << ") in monitor mode at frequency "
+           << freq << " MHz  (mcs=" << mcs_mode << ",stbc=" << stbc_mode
+           << ",ldpc=" << ldpc_mode << ")";
+  if (!set_wifi_monitor_mode(device)) {
+    LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
+    return false;
+  }
+  if (!set_wifi_frequency(device, freq)) {
+    LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+    return false;
+  }
+  return true;
 }

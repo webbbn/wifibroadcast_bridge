@@ -49,13 +49,24 @@
 
 # Global parameters controlling logging, etc
 [global]
-loglevel = critical
+loglevel = info
 sysloglevel = info
 syslogperiod = 5
 statusperiod = 0.2
 maxqueuesize = 200
 
-# Device entried, defining the parameters for different types of wifi devices
+# Generic transmission patters for various device types.
+# These values will be used if the device is not defined explicitly
+#
+# The fields supported are:
+#
+# interface (required) - The wifi device that will be used as a relay
+# frequency - The frequency that the device will be tuned to
+# txpower - The transmission power level
+# mcs - Use mcs transmission rates (if supported) if set to 1
+# stbc - Use space-time block coding (if supported) if set to 1
+# ldpc - Use low-density parity-check code (if supported) if set to 1
+#
 [device-ar9271]
 frequency = 2412
 txpower = 45
@@ -78,6 +89,40 @@ txpower = 45
 mcs = 1
 stbc = 1
 ldpc = 1
+
+# Specific configuration of individual devices.
+# The fields are the say as the generic transmission parameters with the addition
+# of the optional "type" field:
+#
+# type - One of (transmitter, receiver, transceiver, relay) defined as:
+#
+#   tranmitter - The devices used for WFB transmission (currently only one supported)
+#   receiver - The devices used as a receive only device (currently only one supported)
+#   transceiver - The devices used for both transmission and reception (currently only one supported)
+#   relay - All received packets will be re-transmitted on these devices (currently only one supported)
+#   ignore - These devices will not be configured at all
+#
+[device-wlxac64cfa45a00]
+type = relay
+frequency = 5825
+txpower = 45
+mcs = 1
+stbc = 1
+ldpc = 1
+
+[device-wlx9c5c8eb50353]
+type = transceiver
+frequency = 5280
+txpower = 45
+mcs = 1
+stbc = 1
+ldpc = 1
+
+[devices-wlx00e04c115d7c]
+type = ignore
+
+[devices-wlp6s0]
+type = ignore
 
 # UDP interface links
 #
@@ -103,7 +148,7 @@ name = Video Downlink
 direction = down
 port = 1
 inport = 5600
-outports = 127.0.0.1:5600,192.168.20.1:5600,192.168.20.2:5600,192.168.20.3:5600,192.168.20.4:5600
+outports = 127.0.0.1:5600,192.168.20.2:5600,192.168.20.3:5600,192.168.20.4:5600
 blocksize = 1400
 blocks = 20
 fec = 8
@@ -129,7 +174,7 @@ name = Telemetry Downlink
 direction = down
 port = 2
 inport = 14650
-outports = 255.255.255.255:14650
+outports = 127.0.0.1:14650,192.168.20.2:14650,192.168.20.3:14650,192.168.20.4:14650
 type = data
 priority = 3
 blocksize = 1400
@@ -189,7 +234,7 @@ datarate = 4
 name = Downlink port for link status messages
 direction = down
 port = 7
-outports = 255.255.255.255:5154
+outports = 127.0.0.1:5154,192.168.20.2:5154,192.168.20.3:5154,192.168.20.4:5154
 blocksize = 1400
 type = data
 priority = 15
@@ -207,4 +252,4 @@ datarate = 0
 [link-packed_status_down]
 name = UDP port to send packed status messages to
 direction = down
-outports = 255.255.255.255:5800
+outports = 127.0.0.1:5800,192.168.20.2:5800,192.168.20.3:5800,192.168.20.4:5800

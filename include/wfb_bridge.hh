@@ -9,6 +9,7 @@
 #include <wifibroadcast/fec.hh>
 #include <wifibroadcast/raw_socket.hh>
 #include <shared_queue.hh>
+#include <logging.hh>
 
 #define MAX_PORTS 64
 
