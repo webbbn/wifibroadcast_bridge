@@ -44,7 +44,8 @@ double last_packet_time = 0;
 
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
-                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc);
+                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc,
+                      std::string &mode);
 
 
 int main(int argc, char** argv) {
@@ -57,20 +58,17 @@ int main(int argc, char** argv) {
   }
 
   std::string conf_file;
-  std::string mode;
   cxxopts::Options options(argv[0], "Allowed options");
   options.add_options()
     ("h,help", "produce help message")
     ("conf_file", "the path to the configuration file used for configuring ports",
      cxxopts::value<std::string>(conf_file))
-    ("mode", "the mode (air|ground)", cxxopts::value<std::string>(mode))
     ;
-  options.parse_positional({"conf_file", "mode"});
+  options.parse_positional({"conf_file"});
   auto result = options.parse(argc, argv);
-  if (result.count("help") || !result.count("conf_file") ||
-      !result.count("mode")) {
+  if (result.count("help") || !result.count("conf_file")) {
     std::cout << options.help() << std::endl;
-    std::cout << "Positional parameters: <configuration file> <mode (air|ground)>\n";
+    std::cout << "Positional parameters: <configuration file>\n";
     return EXIT_SUCCESS;
   }
 
@@ -85,6 +83,7 @@ int main(int argc, char** argv) {
   std::string log_level = conf.Get("global", "loglevel", "info");
   std::string syslog_level = conf.Get("global", "sysloglevel", "info");
   std::string syslog_host = conf.Get("global", "sysloghost", "localhost");
+  std::string mode = conf.Get("global", "mode", "air");
 
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
 
@@ -286,15 +285,16 @@ int main(int argc, char** argv) {
 
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
-      if (!configure_device(device, device_type, true, false, conf,  mcs, stbc, ldpc)) {
+      std::string dev_mode = mode;
+      if (!configure_device(device, device_type, true, false, conf,  mcs, stbc, ldpc, dev_mode)) {
         continue;
       }
 
       // Create the raw socket
-      RawSendSocket raw_send_sock((mode == "ground"));
+      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground"));
 
       // Connect to the raw wifi interfaces.
-      if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
+      if (raw_send_sock->add_device(device, true, mcs, stbc, ldpc)) {
         LOG_INFO << "Transmitting on interface: " << device << " of type " << device_type;
       } else {
         LOG_ERROR << "Error opening the raw socket for transmiting: " << device
@@ -305,8 +305,8 @@ int main(int argc, char** argv) {
 
       // Create a thread to send raw socket packets.
       auto send_th =
-        [&outqueue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
-          raw_send_thread(outqueue, raw_send_sock, max_queue_size, trans_stats, reset_wifi);
+        [&outqueue, raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
+          raw_send_thread(outqueue, *raw_send_sock, max_queue_size, trans_stats, reset_wifi);
           LOG_INFO << "Raw socket transmit thread exiting";
         };
       send_thread.reset(new std::thread(send_th));
@@ -321,15 +321,16 @@ int main(int argc, char** argv) {
 
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
-      if (!configure_device(device, device_type, false, true, conf,  mcs, stbc, ldpc)) {
+      std::string dev_mode = mode;
+      if (!configure_device(device, device_type, false, true, conf,  mcs, stbc, ldpc, dev_mode)) {
         continue;
       }
 
       // Create the raw socket
-      RawSendSocket raw_send_sock((mode == "ground"));
+      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground"));
 
       // Connect to the raw wifi interfaces.
-      if (raw_send_sock.add_device(device, true, mcs, stbc, ldpc)) {
+      if (raw_send_sock->add_device(device, true, mcs, stbc, ldpc)) {
         LOG_INFO << "Relaying on interface: " << device << " of type " << device_type;
       } else {
         LOG_ERROR << "Error opening the raw socket for relaying: " << device
@@ -341,8 +342,8 @@ int main(int argc, char** argv) {
       relay_queue = std::shared_ptr<SharedQueue<std::shared_ptr<monitor_message_t> > >
         (new SharedQueue<std::shared_ptr<monitor_message_t> >(max_queue_size));
       auto relay_th =
-        [relay_queue, &raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
-          raw_relay_thread(relay_queue, raw_send_sock, max_queue_size, reset_wifi);
+        [relay_queue, raw_send_sock, max_queue_size, &reset_wifi, &trans_stats]() {
+          raw_relay_thread(relay_queue, *raw_send_sock, max_queue_size, reset_wifi);
           LOG_INFO << "Raw socket relay thread exiting";
         };
       relay_thread = std::make_shared<std::thread>(std::thread(relay_th));
@@ -356,13 +357,14 @@ int main(int argc, char** argv) {
 
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
-      if (!configure_device(device, device_type, false, false, conf,  mcs, stbc, ldpc)) {
+      std::string dev_mode = mode;
+      if (!configure_device(device, device_type, false, false, conf,  mcs, stbc, ldpc, mode)) {
         continue;
       }
 
       // Open the raw receive socket
-      RawReceiveSocket raw_recv_sock((mode == "ground"));
-      if (raw_recv_sock.add_device(device)) {
+      std::shared_ptr<RawReceiveSocket> raw_recv_sock(new RawReceiveSocket(dev_mode == "ground"));
+      if (raw_recv_sock->add_device(device)) {
         LOG_INFO << "Receiving on interface: " << device << " of type " << device_type;
       } else {
         LOG_ERROR << "Error opening the raw socket for receiving: " << device
@@ -376,7 +378,7 @@ int main(int argc, char** argv) {
         [raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other, relay_queue]() {
           while(!reset_wifi) {
             std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
-            if (raw_recv_sock.receive(*msg, std::chrono::milliseconds(200))) {
+            if (raw_recv_sock->receive(*msg, std::chrono::milliseconds(200))) {
 
               // Did we stop receiving packets?
               if (msg->data.empty()) {
@@ -400,18 +402,6 @@ int main(int argc, char** argv) {
       receive_device = device;
       break;
     }
-
-/*
-    // Join on the send and receive threads, which should terminate if/when the device is removed.
-    recv_thread->join();
-    LOG_INFO << "Raw receive send thread has terminated.";
-    // Force the send thread to terminate.
-    outqueue.push(std::shared_ptr<Message>(new Message()));
-    send_thread->join();
-    LOG_INFO << "Raw socket send thread has terminated.";
-    relay_queue->push(std::shared_ptr<monitor_message_t>(new monitor_message_t));
-    relay_thread->join();
-*/
   }
 
   return EXIT_SUCCESS;
@@ -429,7 +419,8 @@ std::set<std::string> parse_device_list(const INIReader &conf, const std::string
 }
 
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
-                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc) {
+                      bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc,
+                      std::string &mode) {
   // Ensure the device type is proper for the requested configuration
   std::string type = conf.Get("device-" + device, "type", "unspecified");
   bool ignore = (type == "ignore");
@@ -463,9 +454,13 @@ bool configure_device(const std::string &device, const std::string &device_type,
     ldpc_mode = conf.GetInteger("device-" + device_type, "ldpc", 0);
   }
   ldpc = (ldpc_mode == 1);
+  std::string get_mode = conf.Get("device-" + device, "mode", "");
+  if (!get_mode.empty()) {
+    mode = get_mode;
+  }
   LOG_INFO << "Configuring " << device << " (type=" << type << ") in monitor mode at frequency "
-           << freq << " MHz  (mcs=" << mcs_mode << ",stbc=" << stbc_mode
-           << ",ldpc=" << ldpc_mode << ")";
+  << freq << " MHz  (mcs=" << mcs_mode << ",stbc=" << stbc_mode
+  << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
   if (!set_wifi_monitor_mode(device)) {
     LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
     return false;
