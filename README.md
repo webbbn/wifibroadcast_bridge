@@ -56,74 +56,48 @@ cpack
 
 ## Configuration
 
-**Note:** The only parameter that should need to be different between the ground and air side is the mode, which should be ground on one side and air on the other.
-
-Wifibroadcast_bridge includes a system service for automatically configuring supported wifi devices (wifi_config) and a system service creates a bridge between two computers over a raw wifi link (wfb_bridge).
-
-The following describes the configuration process for each service.
-
-### Configure wifi_config
-
-The configuration file for wifi_config is installed in /etc/default/wifi_config. The file is standard INI format and contains configuration options for configuring the wifi devices. Supported wifi devices will be automatically configured when they are installed in the system.
-
-#### DEFAULT
-
-The default section defines default the parameters that will be used for device types that have not been set in the sections dedicated to specific device types.
-
-#### ath9k
-
-The configuration parameters for Atheros 9k based network cards (ar9271).
-
-### rtl88xx
-
-The configuration parameters for Realtek 88xx based network cards (rtl8812au/rtl8814au).
-
-### Configuring wfb_bridge
-
-Wfb_bridge includes a system service that creates a transparent, forward error corrected link over a raw wifi link.
-
-### global
-
-The global parameters contains parameters that correspond to all the virtual links.
-
-The most important parameter is the mode parameter, which much be changed to "ground" for one of the two ends of the link (nominally the ground side).
-
-### port definitions
-
-The remainder of the sections define distinct, unidirection links that connect a UDP port on one side to a UDP output port on the other side of the link.
-
-The direction parameter determines which side will open the receive port, and which will send packets received over the link. Up implies that the ground side will open the receive port and the air side will send. Down implies the opposite.
+Wifibroadcast_bridge consists of a single program (wfb_bridge) that configures the wifi interface(s), and sends and receives to/from multiple UDP ports. There is a single configuration file to configure the interfaces and ports, which is normally stored in /etc/wfb_bridge.conf. The configuration parameters are documented in the configuration file.
 
 ## Starting and enabling the services
 
-This package adds two systemd services that can be started, stopped, and enabled at boot time.
+This package adds a single systemd services that can be started, stopped, and enabled at boot time.
 
 #### Starting the services
 
 ~~~
-sudo systemctl start wifi_config
 sudo systemctl start wfb_bridge
 ~~~
 
 #### Stopping the services
 
 ~~~
-sudo systemctl stop wifi_config
 sudo systemctl stop wfb_bridge
 ~~~
 
 #### Enabling startup at boot
 
 ~~~
-sudo systemctl enable wifi_config
 sudo systemctl enable wfb_bridge
 ~~~
 
 #### Restarting the services
 
 ~~~
-sudo systemctl restart wifi_config
 sudo systemctl restart wfb_bridge
 ~~~
 
-**Note:** Once the services have been configured they should generally not have to be restarted on any hardware changes, but there are some instances where wfb_bridge will not reenable after removing and inserting a wifi adapter. This will require restarting the wfb_bridge process.
+## Device support
+
+### rtl8812au
+
+It is highly recommended to use rtl8812au based wifi adapters with version v5.6.4.2 of the aircract-ng wifi driver (https://github.com/aircrack-ng/rtl8812au). This has been well tested and works very well at bit rates at least up to 18Mbps or so.
+
+It is critical to add the following option to /etc/modprobe.d/rtl8812au.conf:
+
+options 88XXau rtw_monitor_disable_1m=1
+
+Without this option, monitor mode data transfers are limited to 1Mbps.
+
+### ar9271 / ar7010
+
+The ar9271 (and other devices supported by the ath9k kernel driver) have also been used, but they do not support bit rates above around 8-10 Mbps, require multiple kernel patches, and generally do not perform nearly as well as the rtl8812au.
