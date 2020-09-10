@@ -1,0 +1,13 @@
+[Unit]
+Description=Start the wifibroadcast bridge service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/wfb_bridge.conf
+ExecStart=/usr/bin/wfb_bridge /etc/wfb_bridge.conf
+TimeoutStopSec=5s
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

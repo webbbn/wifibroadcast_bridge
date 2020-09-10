@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.11.2")
+set(VERSION "0.12.0")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -136,9 +136,6 @@ target_link_libraries(test_fec wifibroadcast ${LOG4CPP_LIBRARIES})
 add_executable(raw_socket_test src/raw_socket_test.cc)
 target_link_libraries(raw_socket_test wifibroadcast ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY})
 
-# Add rules to install the python executables
-install(PROGRAMS python/wifi_config DESTINATION ${BinDir} COMPONENT applications)
-
 # Add rules to install the python files
 install(FILES
   python/__init__.py
@@ -148,11 +145,10 @@ install(FILES
   DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
 
 # Add rules to install the configuration files
-install(FILES conf/wfb_bridge DESTINATION etc/default COMPONENT configuration)
+install(FILES conf/wfb_bridge.conf DESTINATION etc COMPONENT configuration)
 
-# Add rules to install the services files
-install(FILES services/wfb_bridge_ground.service DESTINATION lib/systemd/system COMPONENT configuration)
-install(FILES services/wfb_bridge_air.service DESTINATION lib/systemd/system COMPONENT configuration)
+# Add rules to install the services file
+install(FILES services/wfb_bridge.service DESTINATION lib/systemd/system COMPONENT configuration)
 
 # Add rules to install the NetworkManager wifi ignore list
 install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPONENT configuration)

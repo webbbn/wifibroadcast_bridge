@@ -1,5 +1,4 @@
 #!/bin/sh
 
 # Default to ground mode
-systemctl enable /lib/systemd/system/wfb_bridge_ground.service
-systemctl enable /lib/systemd/system/wfb_bridge_air.service
+systemctl enable /lib/systemd/system/wfb_bridge.service
