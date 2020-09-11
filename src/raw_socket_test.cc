@@ -92,10 +92,17 @@ int main(int argc, char** argv) {
   root.setPriority(args.count("verbose") ? log4cpp::Priority::DEBUG : log4cpp::Priority::INFO);
   root.addAppender(appender1);
 
+  // Make sure the adapter is in monitor mode.
+  if (!set_wifi_monitor_mode(device)) {
+    LOG_ERROR << "Error configuring the device in monitor mode";
+    return EXIT_FAILURE;
+  }
+
   // Set the frequency if the user requested it.
   if (args.count("frequency")) {
     if (!set_wifi_frequency(device, frequency)) {
       LOG_ERROR << "Error changing the frequency to: " << frequency;
+      return EXIT_FAILURE;
     } else {
       LOG_DEBUG << "Frequency changed to: " << frequency;
     }
