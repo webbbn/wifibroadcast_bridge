@@ -92,11 +92,11 @@ sudo systemctl restart wfb_bridge
 
 It is highly recommended to use rtl8812au based wifi adapters with version v5.6.4.2 of the aircract-ng wifi driver (https://github.com/aircrack-ng/rtl8812au). This has been well tested and works very well at bit rates at least up to 18Mbps or so.
 
-It is critical to add the following option to /etc/modprobe.d/rtl8812au.conf:
+It is critical to add the following options to /etc/modprobe.d/rtl8812au.conf:
 
-options 88XXau rtw_monitor_disable_1m=1
+options 88XXau rtw_tx_pwr_idx_override=45, rtw_monitor_disable_1m=1
 
-Without this option, monitor mode data transfers are limited to 1Mbps.
+The first option sets the transmit power, and can be set to any value between 0 (auto set tx power) and 63 (maximum power). The second option allows the monitor mode interface to transit at full data rate. Without this option, monitor mode data transfers are limited to 1Mbps!
 
 ### ar9271 / ar7010
 
