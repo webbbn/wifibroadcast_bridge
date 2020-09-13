@@ -46,6 +46,8 @@ inline bool set_wifi_down(const std::string &device) {
 }
 bool set_wifi_monitor_mode(const std::string &device);
 bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz);
+bool set_wifi_txpower_fixed(const std::string &device);
+bool set_wifi_txpower(const std::string &device, uint32_t power_mbm);
 
 class RawSendSocket {
 public:

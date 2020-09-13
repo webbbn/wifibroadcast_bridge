@@ -439,6 +439,10 @@ bool configure_device(const std::string &device, const std::string &device_type,
   if (freq == 0) {
     freq = conf.GetInteger("device-" + device_type, "frequency", 2412);
   }
+  uint32_t txpower = conf.GetInteger("device-" + device, "txpower", 0);
+  if (txpower == 0) {
+    txpower = conf.GetInteger("device-" + device_type, "txpower", 20);
+  }
   int mcs_mode = conf.GetInteger("device-" + device, "mcs", -1);
   if (mcs_mode == -1) {
     mcs_mode = conf.GetInteger("device-" + device_type, "mcs", 0);
@@ -459,7 +463,7 @@ bool configure_device(const std::string &device, const std::string &device_type,
     mode = get_mode;
   }
   LOG_INFO << "Configuring " << device << " (type=" << type << ") in monitor mode at frequency "
-  << freq << " MHz  (mcs=" << mcs_mode << ",stbc=" << stbc_mode
+  << freq << " MHz  (txpower=" << txpower << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
   << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
   if (!set_wifi_monitor_mode(device)) {
     LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
@@ -467,6 +471,10 @@ bool configure_device(const std::string &device, const std::string &device_type,
   }
   if (!set_wifi_frequency(device, freq)) {
     LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+    return false;
+  }
+  if (!set_wifi_txpower(device, txpower)) {
+    LOG_ERROR << "Error setting txpower level on " << device << " to " << txpower;
     return false;
   }
   return true;

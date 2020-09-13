@@ -186,7 +186,6 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
  nla_put_failure:
   nlmsg_free(mesg);
   nl_socket_free(sckt);
-  printf("PUT Failure\n");
   return false;
 }
 
@@ -229,7 +228,83 @@ bool set_wifi_monitor_mode(const std::string &device) {
  nla_put_failure:
   nlmsg_free(mesg);
   nl_socket_free(sckt);
-  printf("PUT Failure\n");
+  return false;
+}
+
+#if 0
+bool set_wifi_txpower_fixed(const std::string &device) {
+
+  /* Create the socket and connect to it. */
+  struct nl_sock *sckt = nl_socket_alloc();
+  genl_connect(sckt);
+
+  /* Allocate a new message. */
+  struct nl_msg *mesg = nlmsg_alloc();
+
+  /* Check /usr/include/linux/nl80211.h for a list of commands and attributes. */
+  enum nl80211_commands command = NL80211_CMD_SET_WIPHY;
+
+  /* Create the message so it will send a command to the nl80211 interface. */
+  genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
+
+  /* Add specific attributes to change the frequency of the device. */
+  NLA_PUT_U32(mesg, NL80211_ATTR_IFINDEX, if_nametoindex(device.c_str()));
+  NLA_PUT_U32(mesg, NL80211_ATTR_WIPHY_TX_POWER_SETTING, NL80211_TX_POWER_FIXED);
+
+  /* Finally send it and receive the amount of bytes sent. */
+  nl_send_auto_complete(sckt, mesg);
+
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return true;
+
+ nla_put_failure:
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return false;
+}
+#endif
+
+bool set_wifi_txpower(const std::string &device, uint32_t power_mbm) {
+
+  // Write the scaled tx power level to the device register if it exists.
+  FILE *fp = fopen("/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override", "w");
+  if (fp) {
+    uint32_t txpower = static_cast<uint32_t>(rint(power_mbm / 50.0));
+    fprintf(fp, "%d", txpower);
+    fclose(fp);
+  } else {
+    LOG_WARNING << "Unable to open: " << "/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override";
+  }
+
+  /* Create the socket and connect to it. */
+  struct nl_sock *sckt = nl_socket_alloc();
+  genl_connect(sckt);
+
+  /* Allocate a new message. */
+  struct nl_msg *mesg = nlmsg_alloc();
+
+  /* Check /usr/include/linux/nl80211.h for a list of commands and attributes. */
+  enum nl80211_commands command = NL80211_CMD_SET_WIPHY;
+
+  /* Create the message so it will send a command to the nl80211 interface. */
+  genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
+
+  /* Add specific attributes to change the frequency of the device. */
+  NLA_PUT_U32(mesg, NL80211_ATTR_IFINDEX, if_nametoindex(device.c_str()));
+  NLA_PUT_U32(mesg, NL80211_ATTR_WIPHY_TX_POWER_SETTING, NL80211_TX_POWER_FIXED);
+  NLA_PUT_U32(mesg, NL80211_ATTR_WIPHY_TX_POWER_LEVEL, power_mbm);
+
+  /* Finally send it and receive the amount of bytes sent. */
+  nl_send_auto_complete(sckt, mesg);
+
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return true;
+
+ nla_put_failure:
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
   return false;
 }
 
