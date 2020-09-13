@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
   std::string other_mode = (mode == "air") ? "ground" : "air";
   float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
   float status_period = conf.GetFloat("global", "statusperiod", 0.2);
+  uint32_t timeout = conf.GetInteger("global", "timeout", 1000);
 
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
 
@@ -213,7 +214,7 @@ int main(int argc, char** argv) {
     }
 
     // Create the socket for sending/receiving
-    int sock = open_udp_socket_for_rx(recv_udp_port, "", 1000);
+    int sock = open_udp_socket_for_rx(recv_udp_port, "", timeout);
     if (sock < 0) {
       LOG_CRITICAL << "Error opening the UDP socket for " << name;
       continue;
@@ -428,10 +429,11 @@ int main(int argc, char** argv) {
 
       // Create the raw socket receive thread
       auto recv =
-        [raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other, relay_queue]() {
+        [raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other, relay_queue,
+         timeout]() {
           while(!reset_wifi) {
             std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
-            if (raw_recv_sock->receive(*msg, std::chrono::milliseconds(200))) {
+            if (raw_recv_sock->receive(*msg, std::chrono::microseconds(timeout))) {
 
               // Did we stop receiving packets?
               if (msg->data.empty()) {
