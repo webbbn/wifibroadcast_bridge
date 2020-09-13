@@ -17,8 +17,6 @@
 
 #include <cxxopts.hpp>
 
-#include <INIReader.h>
-
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -84,6 +82,9 @@ int main(int argc, char** argv) {
   std::string syslog_level = conf.Get("global", "sysloglevel", "info");
   std::string syslog_host = conf.Get("global", "sysloghost", "localhost");
   std::string mode = conf.Get("global", "mode", "air");
+  std::string other_mode = (mode == "air") ? "ground" : "air";
+  float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
+  float status_period = conf.GetFloat("global", "statusperiod", 0.2);
 
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
 
@@ -110,30 +111,20 @@ int main(int argc, char** argv) {
   // Maintain statistics for out side of the connection and the other side.
   // Each side shares stats via periodic messaegs.
   TransferStats trans_stats(mode);
-  TransferStats trans_stats_other((mode == "air") ? "ground" : "air");
+  TransferStats trans_stats_other(other_mode);
 
   // Create an interface to udev that monitors for wifi card insertions / deletions
   bool reset_wifi = false;
   UDevInterface udev(reset_wifi);
   thrs.push_back(std::make_shared<std::thread>(std::thread(&UDevInterface::monitor_thread, &udev)));
 
-  // Open the UDP send socket
-  int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (send_sock < 0) {
-    LOG_CRITICAL << "Error opening the UDP send socket.";
-    return EXIT_FAILURE;
-  }
-  int trueflag = 1;
-  if (setsockopt(send_sock, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof(trueflag)) < 0) {
-    LOG_CRITICAL << "Error setting the UDP send socket to broadcast.";
-    return EXIT_FAILURE;
-  }
+  // Get the status ports
+  uint8_t status_port = conf.GetInteger("link-status", "port", 0);
+  uint8_t packed_status_port = conf.GetInteger("link-packed_status", "port", 0);
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   PacketQueues udp_send_queues[MAX_PORTS];
   const std::set<std::string> &sections = conf.Sections();
-  uint8_t status_port = 0;
-  uint8_t packed_status_port = 0;
   for (const auto &group : sections) {
 
     // Ignore sections that don't start with 'link-'
@@ -141,89 +132,151 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    // Only process uplink configuration entries.
-    std::string direction = conf.Get(group, "direction", "");
-    if (((direction == "up") && (mode == "air")) ||
-	((direction == "down") && (mode == "ground"))) {
+    // Get the name.
+    std::string name = conf.Get(group, "name", "");
 
-      // Get the name.
-      std::string name = conf.Get(group, "name", "");
+    // Get the port number
+    uint8_t port = conf.GetInteger(group, "port", 0);
 
-      // Get the port number (required).
-      uint8_t port = static_cast<uint16_t>(conf.GetInteger(group, "port", 0));
-      if (port > MAX_PORTS) {
-	LOG_CRITICAL << "Invalid port specified for " << name << "  (" << port << ")";
-	return EXIT_FAILURE;
-      }
+    // Get the link type
+    std::string type = conf.Get(group, "type", "data");
+    
+    // Get the priority (optional).
+    uint8_t priority = static_cast<uint8_t>(conf.GetInteger(group, "priority", 100));
 
-      // Get the remote hostname/ip(s) and port(s)
-      std::string outports_str = conf.Get(group, "outports", "");
-      std::vector<std::string> outports;
-      splitstr(outports_str, outports, ',');
-      bool is_status = false;
-      bool is_packed_status = false;
-      if ((group == "link-status_down") || (group == "link-status_up")) {
-        status_port = port;
-        is_status = true;
-      }
-      if ((group == "link-packed_status_down") || (group == "link-packed_status_up")) {
-        packed_status_port = port;
-        is_packed_status = true;
-      }
+    // Get the FEC parameters (optional).
+    uint16_t blocksize = static_cast<uint16_t>(conf.GetInteger(group, "blocksize", 1500));
+    uint8_t nblocks = static_cast<uint8_t>(conf.GetInteger(group, "blocks", 0));
+    uint8_t nfec_blocks = static_cast<uint8_t>(conf.GetInteger(group, "fec", 0));
+    bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
-      // Create a file logger if requested
-      std::string archive_dir = conf.Get(group, "archive_outdir", "");
-      if (!archive_dir.empty()) {
-        PacketQueueP q(new PacketQueue(1000));
-        udp_send_queues[port].push_back(q);
-        // Spawn the archive thread.
-        std::shared_ptr<std::thread> archive_thread
-          (new std::thread([q, port, archive_dir]() { archive_loop(archive_dir, q); }));
-        thrs.push_back(archive_thread);
-      }
+    // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
+    static const uint8_t length_len = 2;
+    std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize + length_len));
 
-      // Create the UDP output destinations.
-      for (size_t i = 0; i < outports.size(); ++i) {
-        std::vector<std::string> host_port;
-        splitstr(outports[i], host_port, ':');
-        if (host_port.size() != 2) {
-          LOG_CRITICAL << "Invalid host:port specified in group: "
-                       << group << " (" << outports[i] << ")";
-          return EXIT_FAILURE;
-        }
-        const std::string &hostname = host_port[0];
-        uint16_t udp_port = atoi(host_port[1].c_str());
-        if (is_status) {
-          LOG_INFO << "Sending status to: " << hostname << ":" << udp_port;
-        }
-        if (is_packed_status) {
-          LOG_INFO << "Sending packed status to: " << hostname << ":" << udp_port;
-        }
-        PacketQueueP q(new PacketQueue(max_queue_size, true));
-        udp_send_queues[port].push_back(q);
-        // Create a UDP send thread for this output port
-        auto udp_send_thr = std::shared_ptr<std::thread>
-          (new std::thread([hostname, udp_port, port, i, q]() {
-                             udp_send_loop(q, hostname, udp_port);
-                           }));
-        thrs.push_back(udp_send_thr);
-      }
+    // Create the FEC encoder if requested.
+    WifiOptions opts;
+    if (type == "data"){
+      opts.link_type = DATA_LINK;
+    } else if (type == "short") {
+      opts.link_type = SHORT_DATA_LINK;
+    } else if (type == "rts") {
+      opts.link_type = RTS_DATA_LINK;
+    } else {
+      opts.link_type = DATA_LINK;
     }
+    opts.data_rate = static_cast<uint8_t>(conf.GetInteger(group, "datarate", 18));
+
+    // See if this link has a rate target specified.
+    uint16_t rate_target = static_cast<uint16_t>(conf.GetInteger(group, "rate_target", 0));
+
+    // Get our receive port number and transmit hosts
+    uint16_t recv_udp_port;
+    std::vector<std::string> send_hosts;
+    if (!parse_portstr(conf, group, mode, recv_udp_port, send_hosts)) {
+      LOG_ERROR << "Error finding/parsing " << mode << " port for " << group;
+      continue;
+    }
+
+    // Parse our send port number and receive hosts
+    uint16_t send_udp_port;
+    std::vector<std::string> recv_hosts;
+    if (!parse_portstr(conf, group, other_mode, send_udp_port, recv_hosts)) {
+      LOG_ERROR << "Error finding/parsing " << other_mode << " port for " << group;
+      continue;
+    }
+
+    // Is this one of the status ports?
+    bool is_status = (port == status_port);
+    bool is_packed_status = (port == packed_status_port);
+
+    // Create a file logger if requested
+    std::string archive_outdir = conf.Get(group, "archive_outdir", "");
+    if (!archive_outdir.empty()) {
+      PacketQueueP q(new PacketQueue(1000));
+      udp_send_queues[port].push_back(q);
+      // Spawn the archive thread.
+      std::shared_ptr<std::thread> archive_thread
+        (new std::thread([q, port, archive_outdir]() { archive_loop(archive_outdir, q); }));
+      thrs.push_back(archive_thread);
+    }
+    std::string archive_indir = conf.Get(group, "archive_indir", "");
+    PacketQueueP archive_inqueue;
+    if (!archive_indir.empty()) {
+      archive_inqueue.reset(new PacketQueue(1000));
+      // Spawn the archive thread.
+      std::shared_ptr<std::thread> archive_thread
+        (new std::thread([archive_inqueue, port, archive_indir]() {
+                           archive_loop(archive_indir, archive_inqueue);
+                         }));
+      thrs.push_back(archive_thread);
+    }
+
+    // Create the socket for sending/receiving
+    int sock = open_udp_socket_for_rx(recv_udp_port, "", 1000);
+    if (sock < 0) {
+      LOG_CRITICAL << "Error opening the UDP socket for " << name;
+      continue;
+    }
+
+    // Create the UDP output destinations.
+    for (size_t i = 0; i < send_hosts.size(); ++i) {
+      const std::string &hostname = send_hosts[i];
+      if (is_status) {
+        LOG_INFO << "Sending status to: " << hostname << ":" << send_udp_port
+                 << " from " << recv_udp_port;
+      } else if (is_packed_status) {
+        LOG_INFO << "Sending packed status to: " << hostname << ":" << send_udp_port
+                 << " from " << recv_udp_port;
+      } else {
+        LOG_INFO << "Sending to: " << hostname << ":" << send_udp_port
+                 << " from " << recv_udp_port;
+      }
+      PacketQueueP q(new PacketQueue(max_queue_size, true));
+      udp_send_queues[port].push_back(q);
+      // Create a UDP send thread for this output port
+      auto udp_send_thr = std::shared_ptr<std::thread>
+        (new std::thread([hostname, sock, send_udp_port, port, q]() {
+                           udp_send_loop(q, sock, hostname, send_udp_port);
+                         }));
+      thrs.push_back(udp_send_thr);
+    }
+
+    // Create the logging thread if this is a status down channel.
+    if (is_status) {
+
+      // Create the stats logging thread.
+      std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+      auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
+                    &outqueue, msg, &udp_send_queues, status_port, packed_status_port] {
+                     log_thread(trans_stats, trans_stats_other, syslog_period, status_period,
+                                outqueue, msg, udp_send_queues[status_port],
+                                udp_send_queues[packed_status_port]);
+                   };
+      thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
+
+    } else {
+
+      // Create the receive thread for this socket
+      auto uth =
+        [sock, recv_udp_port, enc, opts, priority, blocksize, &outqueue, port,
+         do_fec, rate_target, archive_inqueue]() {
+          udp_raw_thread(sock, recv_udp_port, enc, opts, priority, blocksize, outqueue, port,
+                         do_fec, rate_target, archive_inqueue);
+        };
+      thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
+    }
+
+    // Increment the port number
+    ++port;
   }
 
-  // Create the thread for FEC decode and distributin the messages from incoming raw socket queue
+  // Create the thread for FEC decode and distributing the messages from incoming raw socket queue
   auto usth = [&inqueue, &udp_send_queues, &trans_stats, &trans_stats_other, status_port]() {
                 fec_decode_thread(inqueue, udp_send_queues, trans_stats, trans_stats_other,
                                   status_port);
               };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
-
-  // Create the UDP -> raw socket interfaces
-  if (!create_udp_to_raw_threads(outqueue, thrs, conf, trans_stats, trans_stats_other,
-                                 udp_send_queues[status_port], udp_send_queues[packed_status_port],
-                                 mode, max_queue_size)) {
-    return EXIT_FAILURE;
-  }
 
   // Keep trying to connect/reconnect to the devices
   std::set<std::string> current_devices;

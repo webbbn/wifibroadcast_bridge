@@ -23,6 +23,7 @@ int open_udp_socket_for_rx(uint16_t port, const std::string hostname, uint32_t t
   // Set the socket options.
   int optval = 1;
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
+  setsockopt(fd, SOL_SOCKET, SO_BROADCAST, (const void *)&optval, sizeof(optval));
 
   // Set a timeout to ensure that the end of a frame gets flushed
   if (timeout_us > 0) {
@@ -76,6 +77,65 @@ bool archive_loop(std::string archive_dir, PacketQueueP q) {
   }
 
   return true;
+}
+
+void udp_raw_thread(int sock, uint16_t recv_udp_port, std::shared_ptr<FECEncoder> enc,
+                    WifiOptions opts, uint8_t priority, uint16_t blocksize,
+                    SharedQueue<std::shared_ptr<Message> > &outqueue, uint8_t port,
+                    bool do_fec, uint16_t rate_target, PacketQueueP archive_inqueue) {
+  bool flushed = true;
+  double last_recv_time = 0;
+  bool in_gap = false;
+  double last_send_time = 0;
+  double send_rate = static_cast<double>(rate_target) / 1000.0;
+  std::shared_ptr<Message> send_msg;
+
+  while (1) {
+
+    // Receive the next message.
+    std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+    ssize_t count = recv(sock, msg->msg.data(), blocksize, 0);
+    double t = cur_time();
+
+    // Did we receive a message to send?
+    if (count > 0) {
+      last_recv_time = t;
+      msg->msg.resize(count);
+      send_msg = msg;
+    }
+
+    // Do we have a messsage to send?
+    if (send_msg) {
+
+      // See if we're in a receive gap.
+      double tdiff = t - last_packet_time;
+      if (tdiff > 200e-6) {
+        in_gap = true;
+      }
+
+      // Queue the message for sending if we can
+      double stdiff = t - last_send_time;
+      if (in_gap || (stdiff > send_rate)) {
+        outqueue.push(send_msg);
+        flushed = false;
+        last_send_time = t;
+        send_msg.reset();
+      }
+
+      // send the data to the archiver if requested.
+      if (archive_inqueue) {
+        archive_inqueue->push(mkpacket(msg->msg));
+      }
+    }
+
+    // Do we need to flush the FEC encoder?
+    if (!flushed && (t - last_send_time) > 1000.0) {
+      LOG_DEBUG << "Flush";
+      msg->msg.resize(0);
+      outqueue.push(msg);
+      flushed = true;
+    }
+  }
 }
 
 bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,

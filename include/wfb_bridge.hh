@@ -6,6 +6,8 @@
 
 #include <sstream>
 
+#include <INIReader.h>
+
 #include <wifibroadcast/fec.hh>
 #include <wifibroadcast/raw_socket.hh>
 #include <shared_queue.hh>
@@ -77,4 +79,32 @@ static bool mkpath(std::string path) {
     break;
   }
   return false;
+}
+
+static bool parse_portstr(const INIReader &conf,
+                          const std::string &group,
+                          const std::string &mode,
+                          uint16_t &port,
+                          std::vector<std::string> &hosts) {
+
+  // Get the string from the config file
+  const std::string str = conf.Get(group, mode, "");
+  if (str == "") {
+    return false;
+  }
+
+  // Split the port from the list of hosts
+  std::vector<std::string> port_hosts;
+  splitstr(str, port_hosts, ':');
+  port = atoi(port_hosts[0].c_str());
+ 
+  // Parse the host list if there is one
+  hosts.clear();
+  if (port_hosts.size() == 1) {
+    hosts.push_back("127.0.0.1");
+    return true;
+  }
+  splitstr(port_hosts[1], hosts, ',');
+
+  return true;
 }

@@ -69,19 +69,7 @@ std::string hostname_to_ip(const std::string &hostname) {
   return "";
 }
 
-void udp_send_loop(PacketQueueP q, const std::string host, uint16_t port) {
-
-  // Open the socket
-  int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (send_sock < 0) {
-    LOG_CRITICAL << "Error opening the UDP send socket.";
-    return;
-  }
-  int trueflag = 1;
-  if (setsockopt(send_sock, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof(trueflag)) < 0) {
-    LOG_CRITICAL << "Error setting the UDP send socket to broadcast.";
-    return;
-  }
+void udp_send_loop(PacketQueueP q, int send_sock, const std::string host, uint16_t port) {
 
   // Initialize the UDP output socket.
   struct sockaddr_in s;
