@@ -131,12 +131,9 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
 
   // Just release the block of FEC is not being performed on this channel.
   if ((n_blocks == 0) || (n_fec_blocks == 0)) {
-    if (unrolled_seq > (unrolled_prev_seq + 1)) {
-      uint16_t db = (unrolled_seq - unrolled_prev_seq - 1);
-      m_stats.dropped_packets += db;
-      m_stats.dropped_blocks += db;
-      LOG_DEBUG << "Dropped " << db << " packets";
-    }
+    uint16_t db = (unrolled_seq - unrolled_prev_seq - 1);
+    m_stats.dropped_packets += db;
+    m_stats.dropped_blocks += db;
     ph = h;
     m_out_blocks.push(blk);
     return;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "0.13.0")
+set(VERSION "0.13.1")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -144,6 +144,11 @@ install(FILES
   python/rtl8812au.py
   DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
 
+# Add rules to install the scripts
+install(PROGRAMS
+  scripts/set_rtl8812au_txpower
+  DESTINATION ${BinDir} COMPONENT applications)
+
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge.conf DESTINATION etc COMPONENT configuration)
 
@@ -155,7 +160,7 @@ install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPON
 
 # Add rules to install the wifi module configuration files
 install(FILES etc/modprobe.d/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configuration)
-install(FILES etc/modprobe.d/rtl88au.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES etc/modprobe.d/rtl8812au.conf DESTINATION etc/modprobe.d COMPONENT configuration)
 # This file conflicts with the standard configuration file and prevents the .deb file from loading.
 # Replace the standard configuration file with a link to this file after installation.
 install(FILES etc/modprobe.d/ath9k_htc.conf.openhd DESTINATION etc/modprobe.d COMPONENT configuration)

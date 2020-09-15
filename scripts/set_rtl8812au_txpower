@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Ensure that the script is run as root / sudo
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root"  1>&2
+   exit 3
+fi
+
+# Verify the number of parameters
+if [ $# != 1 ]; then
+    echo "Usage: $0 <power level (1-63)>" 1>&2
+    exit 1
+fi
+PWR=$1
+
+# Verify that the power level is within range
+if [ ${PWR} -lt 1 ] || [ ${PWR} -gt 63 ]; then
+    echo "Usage: $0 <power level (1-63)>" 1>&2
+    exit 2
+fi
+
+# Write the power level to the device parameter register
+if [ ! -f /sys/module/88XXau/parameters/rtw_tx_pwr_idx_override ]; then
+   echo "Could not find the parameter file: /sys/module/88XXau/parameters/rtw_tx_pwr_idx_override"  1>&2
+   exit 3
+fi
+echo ${PWR} > /sys/module/88XXau/parameters/rtw_tx_pwr_idx_override
+
+# Inform all the drivers that the value has changes
+for DEV in /sys/class/net/*; do
+    if [ -f ${DEV}/device/uevent ]; then
+        source ${DEV}/device/uevent
+        if [ "${DRIVER}" == 'rtl88XXau' ]; then
+            WDEV=`basename ${DEV}`
+            echo "Setting power on device: ${WDEV}"
+            iw dev ${WDEV} set txpower fixed ${PWR}
+        fi
+    fi
+done
