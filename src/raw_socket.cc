@@ -196,6 +196,13 @@ bool set_wifi_monitor_mode(const std::string &device) {
     return false;
   }
 
+  // The v5.6.4.2 rtl8812au driver throttles monitor mode trafic by default
+  FILE *fp = fopen("/sys/module/88XXau/parameters/rtw_monitor_disable_1m", "w");
+  if (fp) {
+    fprintf(fp, "1");
+    fclose(fp);
+  }
+
   /* Create the socket and connect to it. */
   struct nl_sock *sckt = nl_socket_alloc();
   genl_connect(sckt);
@@ -239,8 +246,6 @@ bool set_wifi_txpower(const std::string &device, uint32_t power_mbm) {
     uint32_t txpower = static_cast<uint32_t>(rint(power_mbm / 50.0));
     fprintf(fp, "%d", txpower);
     fclose(fp);
-  } else {
-    LOG_WARNING << "Unable to open: " << "/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override";
   }
 
   /* Create the socket and connect to it. */
