@@ -31,11 +31,7 @@ class FECBlock {
 public:
   FECBlock(uint8_t seq_num, uint8_t block, uint8_t nblocks, uint8_t nfec_blocks,
 	   uint16_t max_block_len, uint16_t data_length) {
-    if ((nblocks == 0) || (nfec_blocks == 0)) {
-      m_data_length = data_length + sizeof(FECHeader);
-    } else {
-      m_data_length = max_block_len + sizeof(FECHeader) - 2;
-    }
+    m_data_length = max_block_len + sizeof(FECHeader) - 2;
     m_data.reset(new uint8_t[m_data_length]);
     std::fill(m_data.get(), m_data.get() + m_data_length, 0);
     FECHeader *h = header();

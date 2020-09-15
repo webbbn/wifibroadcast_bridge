@@ -155,6 +155,7 @@ install(FILES conf/wifi_ignore.conf DESTINATION etc/NetworkManager/conf.d COMPON
 
 # Add rules to install the wifi module configuration files
 install(FILES etc/modprobe.d/ath9k_hw.conf DESTINATION etc/modprobe.d COMPONENT configuration)
+install(FILES etc/modprobe.d/rtl8812au.conf DESTINATION etc/modprobe.d COMPONENT configuration)
 # This file conflicts with the standard configuration file and prevents the .deb file from loading.
 # Replace the standard configuration file with a link to this file after installation.
 install(FILES etc/modprobe.d/ath9k_htc.conf.openhd DESTINATION etc/modprobe.d COMPONENT configuration)
