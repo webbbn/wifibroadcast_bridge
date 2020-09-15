@@ -144,6 +144,11 @@ install(FILES
   python/rtl8812au.py
   DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
 
+# Add rules to install the scripts
+install(PROGRAMS
+  scripts/set_rtl8812au_txpower
+  DESTINATION ${BinDir} COMPONENT applications)
+
 # Add rules to install the configuration files
 install(FILES conf/wfb_bridge.conf DESTINATION etc COMPONENT configuration)
 
