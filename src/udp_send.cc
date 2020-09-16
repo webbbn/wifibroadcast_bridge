@@ -19,8 +19,10 @@ void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
 
     // Pull the next block off the message queue.
     std::shared_ptr<monitor_message_t> msg = inqueue.pop();
-    stats.add_rssi(msg->rssi);
-    stats.add_latency(msg->latency_ms);
+    if ((msg->data.size() > 0) && (msg->rssi > -100)) {
+      stats.add_rssi(msg->rssi);
+      stats.add_latency(msg->latency_ms);
+    }
     uint8_t port = msg->port;
     if (port >= MAX_PORTS) {
       continue;

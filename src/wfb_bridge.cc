@@ -436,10 +436,7 @@ int main(int argc, char** argv) {
             if (raw_recv_sock->receive(*msg, std::chrono::microseconds(timeout))) {
 
               // Did we stop receiving packets?
-              if (msg->data.empty()) {
-                trans_stats.timeout();
-                trans_stats_other.timeout();
-              } else {
+              if (!msg->data.empty()) {
                 inqueue.push(msg);
                 if (relay_queue) {
                   relay_queue->push(msg);
