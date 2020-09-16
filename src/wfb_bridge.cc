@@ -515,8 +515,8 @@ bool configure_device(const std::string &device, const std::string &device_type,
     mode = get_mode;
   }
   LOG_INFO << "Configuring " << device << " (type=" << type << ") in monitor mode at frequency "
-  << freq << " MHz  (txpower=" << txpower << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
-  << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
+           << freq << " MHz  (txpower=" << txpower << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
+           << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
   if (!set_wifi_monitor_mode(device)) {
     LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
     return false;
