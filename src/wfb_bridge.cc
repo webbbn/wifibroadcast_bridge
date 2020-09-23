@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
 
   // Get the status ports
   uint8_t status_port = conf.GetInteger("link-status", "port", 0);
-  uint8_t packed_status_port = conf.GetInteger("link-packed_status", "port", 0);
+  uint8_t packed_status_port = conf.GetInteger("link-status_packed", "port", 0);
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   PacketQueues udp_send_queues[MAX_PORTS];
