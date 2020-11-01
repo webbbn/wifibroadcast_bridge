@@ -30,7 +30,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 set(BinDir "usr/bin")
 set(LibDir "usr/lib")
 set(IncludeDir "usr/include")
-set(PythonDistDir "dist-packages")
 
 # We have submodule, so we need git to update the submodule
 find_package(Git QUIET)
@@ -81,18 +80,6 @@ find_package(PCAP)
 # Find the pthread library
 find_package(Threads)
 
-# Find the python3 interpreter
-if (${CMAKE_VERSION} VERSION_LESS "3.12.0")
-  set(Python_ADDITIONAL_VERSIONS "3")
-  set(PYTHON_EXECUTABLE "/usr/bin/python3")
-  find_package(PythonInterp 3.0 REQUIRED)
-  set(RELATIVE_PYTHON_DIR "${LibDir}/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/${PythonDistDir}/wifibroadcast")
-else ()
-  find_package(Python3 COMPONENTS Interpreter)
-  set(RELATIVE_PYTHON_DIR "${LibDir}/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/${PythonDistDir}/wifibroadcast")
-endif ()
-set(PYTHON_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${RELATIVE_PYTHON_DIR}")
-
 # Add the libnl package
 find_package(LibNL REQUIRED)
 include_directories(${LibNL_INCLUDE_DIR})
@@ -136,14 +123,6 @@ target_link_libraries(test_fec wifibroadcast ${LOG4CPP_LIBRARIES})
 add_executable(raw_socket_test src/raw_socket_test.cc)
 target_link_libraries(raw_socket_test wifibroadcast ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY})
 
-# Add rules to install the python files
-install(FILES
-  python/__init__.py
-  python/ar7010.py
-  python/ar9271.py
-  python/rtl8812au.py
-  DESTINATION ${RELATIVE_PYTHON_DIR} COMPONENT application)
-
 # Add rules to install the scripts
 install(PROGRAMS
   scripts/set_rtl8812au_txpower
@@ -178,7 +157,7 @@ install(FILES
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
 
 # Add the debian debian package dependencies
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3-pyudev,libpcap0.8")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libpcap0.8")
 
 # Add rules to build a debian package
 set(CPACK_GENERATOR "DEB")
