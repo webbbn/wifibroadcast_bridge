@@ -11,7 +11,6 @@
 #include <sys/socket.h>
 #include <netinet/ether.h>
 #include <netpacket/packet.h>
-#include <net/if.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
@@ -21,6 +20,9 @@
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 #include <linux/nl80211.h>
+#undef __USE_MISC
+#include <net/if.h>
+#include <linux/if.h>
 
 #include <iostream>
 
