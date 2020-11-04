@@ -43,7 +43,7 @@ double last_packet_time = 0;
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
                       bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc,
-                      std::string &mode);
+                      std::string &mode, bool do_configure);
 
 
 int main(int argc, char** argv) {
@@ -59,6 +59,8 @@ int main(int argc, char** argv) {
   cxxopts::Options options(argv[0], "Allowed options");
   options.add_options()
     ("h,help", "produce help message")
+    ("no_conf_wifi", "Do not configure the wifi interfaces",
+     cxxopts::value<bool>()->default_value("false"))
     ("conf_file", "the path to the configuration file used for configuring ports",
      cxxopts::value<std::string>(conf_file))
     ;
@@ -69,6 +71,7 @@ int main(int argc, char** argv) {
     std::cout << "Positional parameters: <configuration file>\n";
     return EXIT_SUCCESS;
   }
+  bool do_configure = (result.count("no_conf_wifi") == 0);
 
   // Parse the configuration file.
   INIReader conf(conf_file);
@@ -340,7 +343,8 @@ int main(int argc, char** argv) {
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
       std::string dev_mode = mode;
-      if (!configure_device(device, device_type, true, false, conf,  mcs, stbc, ldpc, dev_mode)) {
+      if (!configure_device(device, device_type, true, false, conf,  mcs, stbc, ldpc, dev_mode,
+                            do_configure)) {
         continue;
       }
 
@@ -376,7 +380,8 @@ int main(int argc, char** argv) {
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
       std::string dev_mode = mode;
-      if (!configure_device(device, device_type, false, true, conf,  mcs, stbc, ldpc, dev_mode)) {
+      if (!configure_device(device, device_type, false, true, conf,  mcs, stbc, ldpc, dev_mode,
+                            do_configure)) {
         continue;
       }
 
@@ -412,7 +417,8 @@ int main(int argc, char** argv) {
       // Configure that device if appropriate for this mode
       bool mcs, stbc, ldpc;
       std::string dev_mode = mode;
-      if (!configure_device(device, device_type, false, false, conf,  mcs, stbc, ldpc, mode)) {
+      if (!configure_device(device, device_type, false, false, conf,  mcs, stbc, ldpc, mode,
+                            do_configure)) {
         continue;
       }
 
@@ -472,7 +478,7 @@ std::set<std::string> parse_device_list(const INIReader &conf, const std::string
 
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
                       bool relay, const INIReader &conf, bool &mcs, bool &stbc, bool &ldpc,
-                      std::string &mode) {
+                      std::string &mode, bool do_configure) {
   // Ensure the device type is proper for the requested configuration
   std::string type = conf.Get("device-" + device, "type", "unspecified");
   bool ignore = (type == "ignore");

@@ -327,15 +327,6 @@ bool RawSendSocket::add_device(const std::string &device, bool silent,
   struct ifreq ifr;
   strncpy(ifr.ifr_name, device.c_str(), IFNAMSIZ);
 
-  // Get the current mode.
-  struct iwreq mode;
-  memset(&mode, 0, sizeof(mode));
-  strncpy(mode.ifr_name, device.c_str(), device.length());
-  mode.ifr_name[device.length()] = 0;
-  if ((ioctl(m_sock, SIOCGIWMODE, &mode) < 0) || (mode.u.mode != IW_MODE_MONITOR)) {
-    return false;
-  }
-
   if (ioctl(m_sock, SIOCGIFINDEX, &ifr) < 0) {
     if (!silent) {
       LOG_ERROR << "Error: ioctl(SIOCGIFINDEX) failed.";

@@ -22,6 +22,8 @@ UDevInterface::UDevInterface(bool &reset_flag) : m_udev(0), m_reset_flag(reset_f
   m_driver_map[std::make_pair(std::string("rtl88XXau"), std::string(""))] = "rtl8812au";
   m_driver_map[std::make_pair(std::string("ath9k_htc"), std::string("7710"))] = "ar7010";
   m_driver_map[std::make_pair(std::string("ath9k_htc"), std::string("9271"))] = "ar9271";
+  m_driver_map[std::make_pair(std::string("ath9k_htc"), std::string(""))] = "ar9271";
+  m_driver_map[std::make_pair(std::string("ath9k"), std::string(""))] = "ar9271";
 }
 
 UDevInterface::~UDevInterface() {
@@ -32,9 +34,13 @@ UDevInterface::~UDevInterface() {
 
 
 std::string UDevInterface::card_type(udev_device *dev) {
-  const char *driver = udev_device_get_property_value(dev, "ID_NET_DRIVER");
-  if (!driver) {
+  if (!dev) {
     return std::string("");
+  }
+  const char *driver = udev_device_get_driver(dev);
+  if (!driver) {
+    // Check the parent
+    return card_type(udev_device_get_parent(dev));
   }
   const char *model = udev_device_get_property_value(dev, "ID_MODEL_ID");
   std::string dev_model;
@@ -78,7 +84,11 @@ void UDevInterface::update_devices() {
     const char *path = udev_list_entry_get_name(dev_list_entry);
     udev_device *dev = udev_device_new_from_syspath(m_udev, path);
     const char *type = udev_device_get_devtype(dev);
-
+    const char *driverr = udev_device_get_driver(dev);
+    LOG_DEBUG << "path: " << path;
+    LOG_DEBUG << "dev: " << dev;
+    LOG_DEBUG << "type: " << type;
+    
     // Specifically, we're looking for wlan devices
     if (type && (strncmp(type, "wlan", 4) == 0)) {
       LOG_DEBUG << "I: DEVNOD=" <<  udev_device_get_devnode(dev);
@@ -98,14 +108,15 @@ void UDevInterface::update_devices() {
 }
 
 void UDevInterface::monitor_thread() {
-  LOG_DEBUG << "Monitoring for network device changes";
+  LOG_INFO << "Monitoring for network device changes";
 
   // Initialize the list of devices
   update_devices();
 
   // Create the interface for monitoring USB network device activity
   struct udev_monitor *monitor = udev_monitor_new_from_netlink(m_udev, "udev");
-  udev_monitor_filter_add_match_subsystem_devtype(monitor, "usb", NULL);
+  udev_monitor_filter_add_match_subsystem_devtype(monitor, "usb", "wlan");
+  udev_monitor_filter_add_match_subsystem_devtype(monitor, "pci", "wlan");
   udev_monitor_enable_receiving(monitor);
   int fd = udev_monitor_get_fd(monitor);
 
