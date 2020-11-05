@@ -5,7 +5,7 @@
 
 #include <iostream>
 
-#include <cxxopts.hpp>
+#include <cmdparser.hpp>
 
 #include <wifibroadcast/fec.hh>
 #include <wifibroadcast/raw_socket.hh>
@@ -42,54 +42,53 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  uint8_t port;
-  uint64_t period;
-  uint16_t length;
-  float frequency;
-  uint8_t datarate;
-  uint8_t num_data_blocks;
-  uint8_t num_fec_blocks;
-  std::string message;
-  std::string device;
-  cxxopts::Options options(argv[0], "Allowed options");
-  options.add_options()
-    ("h,help", "produce help message")
-    ("v,verbose", "produce verbose logging")
-    ("p,port", "the port number (0-16) to send to",
-     cxxopts::value<uint8_t>(port)->default_value("0"))
-    ("d,datarate", "the MCS datarate",
-     cxxopts::value<uint8_t>(datarate)->default_value("3"))
-    ("l,length", "the length of message to send",
-     cxxopts::value<uint16_t>(length)->default_value("1024"))
-    ("D,data_blocks", "the number of data blocks per FEC sequence",
-     cxxopts::value<uint8_t>(num_data_blocks)->default_value("0"))
-    ("F,fec_blocks", "the number of fec blocks per FEC sequence",
-     cxxopts::value<uint8_t>(num_fec_blocks)->default_value("0"))
-    ("r,receiver", "receive messages instead of sending them")
-    ("m,message", "the test message to send",
-     cxxopts::value<std::string>(message))
-    ("P,period", "the time between messages in microseconds",
-     cxxopts::value<uint64_t>(period)->default_value("0"))
-    ("f,frequency", "change the frequency of the wifi channel",
-     cxxopts::value<float>(frequency)->default_value("0"))
-    ("device", "the wifi device to connect to",
-     cxxopts::value<std::string>(device))
-    ;
-  options.parse_positional({"device"});
+  cli::Parser options(argc, argv);
+  options.set_optional<bool>
+    ("v", "verbose", false, "output debug messages");
+  options.set_optional<uint16_t>
+    ("p", "port", 0, "the port number (0-16) to send to");
+  options.set_optional<uint16_t>
+    ("d", "datarate", 3, "the MCS datarate");
+  options.set_optional<uint16_t>
+    ("l", "length", 1024, "the length of message to send");
+  options.set_optional<uint16_t>
+    ("D", "data_blocks", 0, "the number of data blocks per FEC sequence");
+  options.set_optional<uint16_t>
+    ("F", "fec_blocks", 0, "the number of fec blocks per FEC sequence");
+  options.set_optional<bool>
+    ("r", "receiver", false, "receive messages instead of sending them");
+  options.set_optional<std::string>
+    ("m", "message", "Hello World!", "the test message to send");
+  options.set_optional<uint64_t>
+    ("P", "period", 0, "the time between messages in microseconds");
+  options.set_optional<float>
+    ("f", "frequency", 0, "change the frequency of the wifi channel");
+  options.set_required<std::string>
+    ("c", "conf_file", "the path to the configuration file used for configuring ports");
+  options.set_required<std::string>
+    ("D", "device", "the wifi device to connect to");
+  options.run_and_exit_if_error();
 
-  auto args = options.parse(argc, argv);
-  if (args.count("help")) {
-    std::cout << options.help() << std::endl;
-    std::cout << "Positional parameters: <device>\n";
-    return EXIT_SUCCESS;
-  }
-  bool receiver = args.count("receiver");
+  bool do_configure = !options.get<bool>("n");
+  std::string conf_file = options.get<std::string>("c");
+
+  uint16_t port = options.get<uint16_t>("p");
+  uint64_t period = options.get<uint64_t>("P");
+  uint16_t length = options.get<uint16_t>("l");
+  float frequency = options.get<float>("f");
+  uint16_t datarate = options.get<uint16_t>("d");
+  uint16_t num_data_blocks = options.get<uint16_t>("D");
+  uint16_t num_fec_blocks = options.get<uint16_t>("F");
+  std::string message = options.get<std::string>("m");
+  std::string device = options.get<std::string>("D");
+  bool receiver = options.get<bool>("r");
+  bool verbose = options.get<bool>("v");
 
   // Configure logging
   log4cpp::Appender *appender1 = new log4cpp::OstreamAppender("console", &std::cout);
   appender1->setLayout(new log4cpp::BasicLayout());
   log4cpp::Category& root = log4cpp::Category::getRoot();
-  root.setPriority(args.count("verbose") ? log4cpp::Priority::DEBUG : log4cpp::Priority::INFO);
+  root.setPriority(verbose ? log4cpp::Priority::DEBUG : log4cpp::Priority::INFO);
   root.addAppender(appender1);
 
   // Make sure the adapter is in monitor mode.
@@ -99,7 +98,7 @@ int main(int argc, char** argv) {
   }
 
   // Set the frequency if the user requested it.
-  if (args.count("frequency")) {
+  if (frequency != 0) {
     if (!set_wifi_frequency(device, frequency)) {
       LOG_ERROR << "Error changing the frequency to: " << frequency;
       return EXIT_FAILURE;

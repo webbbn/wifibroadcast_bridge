@@ -15,8 +15,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include <cxxopts.hpp>
-
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -27,6 +25,7 @@
 #include <set>
 #include <cstdlib>
 
+#include <cmdparser.hpp>
 #include <logging.hh>
 #include <shared_queue.hh>
 #include <wifibroadcast/raw_socket.hh>
@@ -55,23 +54,14 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  std::string conf_file;
-  cxxopts::Options options(argv[0], "Allowed options");
-  options.add_options()
-    ("h,help", "produce help message")
-    ("no_conf_wifi", "Do not configure the wifi interfaces",
-     cxxopts::value<bool>()->default_value("false"))
-    ("conf_file", "the path to the configuration file used for configuring ports",
-     cxxopts::value<std::string>(conf_file))
-    ;
-  options.parse_positional({"conf_file"});
-  auto result = options.parse(argc, argv);
-  if (result.count("help") || !result.count("conf_file")) {
-    std::cout << options.help() << std::endl;
-    std::cout << "Positional parameters: <configuration file>\n";
-    return EXIT_SUCCESS;
-  }
-  bool do_configure = (result.count("no_conf_wifi") == 0);
+  cli::Parser options(argc, argv);
+  options.set_optional<bool>("n", "no_conf_wifi", false, "do not configure the wifi interfaces");
+  options.set_required<std::string>
+    ("c", "conf_file", "the path to the configuration file used for configuring ports");
+  options.run_and_exit_if_error();
+
+  bool do_configure = !options.get<bool>("n");
+  std::string conf_file = options.get<std::string>("c");
 
   // Parse the configuration file.
   INIReader conf(conf_file);

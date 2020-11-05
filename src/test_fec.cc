@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include <cxxopts.hpp>
+#include <cmdparser.hpp>
 
 #include <wifibroadcast/fec.hh>
 #include <logging.hh>
@@ -75,25 +75,18 @@ std::pair<uint32_t, double> run_test(FECBufferEncoder &enc, uint32_t max_block_s
 
 int main(int argc, char** argv) {
 
-  cxxopts::Options options(argv[0], "Allowed options");
-  options.add_options()
-    ("h,help", "produce help message")
-    ("iterations", "the number of iterations to run",
-     cxxopts::value<uint32_t>()->default_value("1000"))
-    ("block_size", "the block size to test",
-     cxxopts::value<uint32_t>()->default_value("1400"))
-    ("fec_ratio", "the FEC block / data block ratio",
-     cxxopts::value<float>()->default_value("0.5"))
-    ;
+  cli::Parser options(argc, argv);
+  options.set_optional<uint16_t>
+    ("i", "iterations", 1000, "the number of iterations to run");
+  options.set_optional<uint16_t>
+    ("b", "block_size", 1400, "the block size to test");
+  options.set_optional<float>
+    ("f", "fec_ratio", 0.5, "the FEC block / data block ratio");
 
-  auto result = options.parse(argc, argv);
-  if (result.count("help")) {
-    std::cout << options.help() << std::endl;
-    return EXIT_SUCCESS;
-  }
-  uint32_t iterations = result["iterations"].as<uint32_t>();
-  uint32_t block_size = result["block_size"].as<uint32_t>();
-  float fec_ratio = result["fec_ratio"].as<float>();
+  options.run_and_exit_if_error();
+  uint32_t iterations = options.get<uint32_t>("i");
+  uint32_t block_size = options.get<uint32_t>("b");
+  float fec_ratio = options.get<float>("f");
 
   // Configure logging
   log4cpp::Appender *appender1 = new log4cpp::OstreamAppender("console", &std::cout);

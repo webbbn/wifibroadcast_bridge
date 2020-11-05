@@ -49,9 +49,6 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
 endif()
 
 # Ensure the submodule directories were checked out successfully
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/cxxopts/include/cxxopts.hpp")
-  message(FATAL_ERROR "The cxxopts submodule was not downloaded! Please update submodules and try again.")
-endif()
 if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/tinyformat/tinyformat.h")
   message(FATAL_ERROR "The tinyformat submodule was not downloaded! Please update submodules and try again.")
 endif()
@@ -62,10 +59,6 @@ endif()
 # Add the log4cpp package
 find_package(log4cpp REQUIRED)
 include_directories(${LOG4CPP_INCLUDE_DIR})
-
-# Add the cxxopts submodule directory
-add_subdirectory(modules/cxxopts)
-include_directories(modules/cxxopts/include)
 
 # Add the tinyformat submodule directory
 add_subdirectory(modules/tinyformat)
