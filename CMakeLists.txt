@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "1.0.1")
+set(VERSION "1.1.0")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -104,6 +104,7 @@ add_executable(wfb_bridge
   src/log_thread.cc
   src/raw_send_thread.cc
   src/udev_interface.cc
+  src/tun_interface.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
 target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY}  wifibroadcast pthread)

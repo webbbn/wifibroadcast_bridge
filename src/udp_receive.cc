@@ -275,3 +275,43 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
   return true;
 }
+
+void tun_raw_thread(std::shared_ptr<TUNInterface> tun_interface, std::shared_ptr<FECEncoder> enc,
+                    WifiOptions opts, uint8_t priority, uint16_t blocksize,
+                    SharedQueue<std::shared_ptr<Message> > &outqueue, uint8_t port,
+                    bool do_fec, uint16_t rate_target, PacketQueueP archive_inqueue) {
+  bool flushed = true;
+  double last_send_time = 0;
+  double send_rate = static_cast<double>(rate_target) / 1000.0;
+  std::shared_ptr<Message> send_msg;
+
+  while (1) {
+
+    // Receive the next message.
+    // 1ms timeout for FEC links to support flushing
+    // Update rate target every 100 uS
+    uint32_t timeout_us = (rate_target > 0) ? 100 : (do_fec ? 1000 : 0);
+    std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
+    tun_interface->read(msg->msg, timeout_us);
+
+    // Did we receive a message to send?
+    if (!msg->msg.empty()) {
+
+      // Add the mesage to the output queue
+      outqueue.push(msg);
+
+      // send the data to the archiver if requested.
+      if (archive_inqueue) {
+        archive_inqueue->push(mkpacket(msg->msg));
+      }
+
+      // Indicate that we have put data in the queue, so should flush if necessary
+      flushed = false;
+
+    } else {
+      msg->msg.resize(0);
+      outqueue.push(msg);
+      flushed = true;
+    }
+  }
+}

@@ -8,6 +8,7 @@
 #include <INIReader.h>
 
 #include <log_thread.hh>
+#include <tun_interface.hh>
 
 bool archive_loop(std::string archive_dir, PacketQueueP q);
 
@@ -27,3 +28,8 @@ bool create_udp_to_raw_threads(SharedQueue<std::shared_ptr<Message> > &outqueue,
                                PacketQueues &packed_log_out,
 			       const std::string &mode,
                                uint32_t max_queue_size);
+
+void tun_raw_thread(std::shared_ptr<TUNInterface> tun_interface, std::shared_ptr<FECEncoder> enc,
+                    WifiOptions opts, uint8_t priority, uint16_t blocksize,
+                    SharedQueue<std::shared_ptr<Message> > &outqueue, uint8_t port,
+                    bool do_fec, uint16_t rate_target, PacketQueueP archive_inqueue);

@@ -116,6 +116,10 @@ int main(int argc, char** argv) {
   uint8_t status_port = conf.GetInteger("link-status", "port", 0);
   uint8_t packed_status_port = conf.GetInteger("link-status_packed", "port", 0);
 
+  // Get the TUN port if it exists
+  uint8_t tun_port = conf.GetInteger("link-tun", "port", 0);
+  std::shared_ptr<TUNInterface> tun_interface;
+
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   PacketQueues udp_send_queues[MAX_PORTS];
   const std::set<std::string> &sections = conf.Sections();
@@ -180,10 +184,6 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    // Is this one of the status ports?
-    bool is_status = (port == status_port);
-    bool is_packed_status = (port == packed_status_port);
-
     // Create a file logger if requested
     std::string archive_outdir = conf.Get(group, "archive_outdir", "");
     if (!archive_outdir.empty()) {
@@ -206,6 +206,39 @@ int main(int argc, char** argv) {
       thrs.push_back(archive_thread);
     }
 
+    // Is this a TUN IP tunnel interface port?
+    bool is_tun = (port == tun_port);
+    if (is_tun) {
+      if (!send_hosts.empty()) {
+        const std::string &tun_host = send_hosts[0];
+
+        // Initizlize the TUN interface
+        tun_interface.reset(new TUNInterface());
+        tun_interface->init(tun_host, "255.255.255.0", blocksize);
+
+        // Create the receive thread for the TUN interface
+        auto uth =
+          [tun_interface, enc, opts, priority, blocksize, &outqueue, port,
+           do_fec, rate_target, archive_inqueue]() {
+            tun_raw_thread(tun_interface, enc, opts, priority, blocksize, outqueue, port,
+                           do_fec, rate_target, archive_inqueue);
+          };
+        thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
+
+        // Create the TUN output thread.
+        LOG_INFO << "(" << name << ") Sending TUN packets to: " << tun_host
+                 << " and from " << recv_udp_port;
+        PacketQueueP q(new PacketQueue(max_queue_size, true));
+        udp_send_queues[port].push_back(q);
+        auto tun_send_thr = std::shared_ptr<std::thread>
+          (new std::thread([tun_interface, q]() {
+                             tun_send_loop(q, tun_interface);
+                           }));
+        thrs.push_back(tun_send_thr);
+      }
+      continue;
+    }
+
     // Create the socket for sending/receiving
     int sock = open_udp_socket_for_rx(recv_udp_port, "", timeout);
     if (sock < 0) {
@@ -213,18 +246,22 @@ int main(int argc, char** argv) {
       continue;
     }
 
+    // Is this one of the status ports?
+    bool is_status = (port == status_port);
+    bool is_packed_status = (port == packed_status_port);
+
     // Create the UDP output destinations.
     for (size_t i = 0; i < send_hosts.size(); ++i) {
       const std::string &hostname = send_hosts[i];
       if (is_status) {
-        LOG_INFO << "Sending status to: " << hostname << ":" << send_udp_port
-                 << " from " << recv_udp_port;
+        LOG_INFO << "(" << name << ") Sending status to: " << hostname << ":"
+                 << send_udp_port << " from " << recv_udp_port;
       } else if (is_packed_status) {
-        LOG_INFO << "Sending packed status to: " << hostname << ":" << send_udp_port
-                 << " from " << recv_udp_port;
+        LOG_INFO << "(" << name << ") Sending packed status to: " << hostname << ":"
+                 << send_udp_port << " from " << recv_udp_port;
       } else {
-        LOG_INFO << "Sending to: " << hostname << ":" << send_udp_port
-                 << " from " << recv_udp_port;
+        LOG_INFO << "(" << name << ") Sending to: " << hostname << ":"
+                 << send_udp_port << " from " << recv_udp_port;
       }
       PacketQueueP q(new PacketQueue(max_queue_size, true));
       udp_send_queues[port].push_back(q);
@@ -266,7 +303,8 @@ int main(int argc, char** argv) {
   }
 
   // Create the thread for FEC decode and distributing the messages from incoming raw socket queue
-  auto usth = [&inqueue, &udp_send_queues, &trans_stats, &trans_stats_other, status_port]() {
+  auto usth = [&inqueue, &udp_send_queues, &trans_stats, &trans_stats_other, status_port,
+               tun_interface, tun_port]() {
                 fec_decode_thread(inqueue, udp_send_queues, trans_stats, trans_stats_other,
                                   status_port);
               };

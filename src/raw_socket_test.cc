@@ -69,9 +69,6 @@ int main(int argc, char** argv) {
     ("D", "device", "the wifi device to connect to");
   options.run_and_exit_if_error();
 
-  bool do_configure = !options.get<bool>("n");
-  std::string conf_file = options.get<std::string>("c");
-
   uint16_t port = options.get<uint16_t>("p");
   uint64_t period = options.get<uint64_t>("P");
   uint16_t length = options.get<uint16_t>("l");
@@ -122,7 +119,7 @@ int main(int argc, char** argv) {
     if (raw_recv_sock.add_device(device)) {
       LOG_DEBUG << "Receiving on interface: " << device;
     } else {
-      LOG_DEBUG << "Error opening the raw socket for transmiting: " << device;
+      LOG_DEBUG << "Error opening the raw socket for receiving: " << device;
       return EXIT_FAILURE;
     }
 

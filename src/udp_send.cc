@@ -86,3 +86,10 @@ void udp_send_loop(PacketQueueP q, int send_sock, const std::string host, uint16
            (struct sockaddr *)&(s), sizeof(struct sockaddr_in));
   }
 }
+
+void tun_send_loop(PacketQueueP q, std::shared_ptr<TUNInterface> tun_interface) {
+  while (1) {
+    Packet msg = q->pop();
+    tun_interface->write(msg->data(), msg->size());
+  }
+}
