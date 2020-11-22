@@ -37,6 +37,7 @@
 #include <raw_send_thread.hh>
 #include <udev_interface.hh>
 
+constexpr uint8_t mcs_legacy_datarates[] = { 11, 22, 36, 48, 72, 96, 108 };
 double last_packet_time = 0;
 
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
@@ -553,7 +554,8 @@ bool configure_device(const std::string &device, const std::string &device_type,
     mode = get_mode;
   }
   LOG_INFO << "Configuring " << device << " (type=" << type << ") in monitor mode at frequency "
-           << freq << " MHz  (txpower=" << txpower << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
+           << freq << " MHz  (txpower=" << txpower << ",datarate=" << datarate
+           << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
            << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
   if (!set_wifi_monitor_mode(device)) {
     LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
@@ -566,11 +568,12 @@ bool configure_device(const std::string &device, const std::string &device_type,
   if (!set_wifi_txpower(device, txpower)) {
     LOG_WARNING << "Unable to set txpower level on " << device << " to " << txpower;
   }
-  static const uint8_t mcs_legacy_datarates[] = { 5, 11, 18, 24, 36, 48, 54 };
-  if ((datarate > 0) && (datarate < 7) &&
-      !set_wifi_legacy_bitrate(device, mcs_legacy_datarates[datarate])) {
-    LOG_WARNING << "Unable to set legacy datarate on " << device << " to (mcs=" << datarate << ") "
-                << mcs_legacy_datarates[datarate];
+  if ((datarate >= 0) && (datarate < 7)) {
+    uint8_t bitrate = mcs_legacy_datarates[datarate];
+    if (!set_wifi_legacy_bitrate(device, bitrate)) {
+      LOG_WARNING << "Unable to set legacy datarate on " << device << " to (mcs="
+                  << datarate << ") " << bitrate;
+    }
   }
   return true;
 }
