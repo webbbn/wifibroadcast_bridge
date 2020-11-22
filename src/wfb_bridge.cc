@@ -37,7 +37,6 @@
 #include <raw_send_thread.hh>
 #include <udev_interface.hh>
 
-constexpr uint8_t mcs_legacy_datarates[] = { 11, 22, 36, 48, 72, 96, 108 };
 double last_packet_time = 0;
 
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
@@ -557,23 +556,40 @@ bool configure_device(const std::string &device, const std::string &device_type,
            << freq << " MHz  (txpower=" << txpower << ",datarate=" << datarate
            << ",mcs=" << mcs_mode << ",stbc=" << stbc_mode
            << ",ldpc=" << ldpc_mode << ",mode=" << mode << ")";
-  if (!set_wifi_monitor_mode(device)) {
-    LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
-    return false;
-  }
-  if (!set_wifi_frequency(device, freq)) {
-    LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
-    return false;
-  }
-  if (!set_wifi_txpower(device, txpower)) {
-    LOG_WARNING << "Unable to set txpower level on " << device << " to " << txpower;
-  }
+
+  // First configure the datarate if necessary
   if ((datarate >= 0) && (datarate < 7)) {
+    constexpr uint8_t mcs_legacy_datarates[] = { 11, 22, 36, 48, 72, 96, 108 };
     uint8_t bitrate = mcs_legacy_datarates[datarate];
+
+    // The interface must be up to change the bitrates
+    if (!set_wifi_up(device)) {
+      LOG_ERROR << "Unable to set bring " << device << " up";
+      return false;
+    }
     if (!set_wifi_legacy_bitrate(device, bitrate)) {
       LOG_WARNING << "Unable to set legacy datarate on " << device << " to (mcs="
                   << datarate << ") " << bitrate;
     }
+    set_wifi_down(device);
   }
+
+  // Configure the interface in monitor mode and bring the interface up
+  if (!set_wifi_monitor_mode(device)) {
+    LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
+    return false;
+  }
+
+  // Set the frequency
+  if (!set_wifi_frequency(device, freq)) {
+    LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+    return false;
+  }
+
+  // Configure the transmit power
+  if (!set_wifi_txpower(device, txpower)) {
+    LOG_WARNING << "Unable to set txpower level on " << device << " to " << txpower;
+  }
+
   return true;
 }
