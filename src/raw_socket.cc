@@ -215,10 +215,13 @@ bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
 
   /* Send the message to change the bitrate. */
   nla_put(mesg, NL80211_TXRATE_LEGACY, 1, &rate);
-
-  /* Finalize and cleanup */
   nla_nest_end(mesg, nl_band);
   nla_nest_end(mesg, nl_rates);
+
+  /* Finally send it and receive the amount of bytes sent. */
+  nl_send_auto_complete(sckt, mesg);
+
+  /* Finalize and cleanup */
   nlmsg_free(mesg);
   nl_socket_free(sckt);
   return true;
