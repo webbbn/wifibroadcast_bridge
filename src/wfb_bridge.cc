@@ -529,6 +529,10 @@ bool configure_device(const std::string &device, const std::string &device_type,
   if (txpower == 0) {
     txpower = conf.GetInteger("device-" + device_type, "txpower", 20);
   }
+  int datarate = conf.GetInteger("device-" + device, "datarate", -1);
+  if (datarate == -1) {
+    datarate = conf.GetInteger("device-" + device_type, "datarate", -1);
+  }
   int mcs_mode = conf.GetInteger("device-" + device, "mcs", -1);
   if (mcs_mode == -1) {
     mcs_mode = conf.GetInteger("device-" + device_type, "mcs", 0);
@@ -563,9 +567,10 @@ bool configure_device(const std::string &device, const std::string &device_type,
     LOG_WARNING << "Unable to set txpower level on " << device << " to " << txpower;
   }
   static const uint8_t mcs_legacy_datarates[] = { 5, 11, 18, 24, 36, 48, 54 };
-  if ((mcs < 7) && !set_wifi_legacy_bitrate(device, mcs_legacy_datarates[mcs])) {
-    LOG_WARNING << "Unable to set legacy datarate on " << device << " to "
-                << mcs_legacy_datarates[mcs];
+  if ((datarate > 0) && (datarate < 7) &&
+      !set_wifi_legacy_bitrate(device, mcs_legacy_datarates[datarate])) {
+    LOG_WARNING << "Unable to set legacy datarate on " << device << " to (mcs=" << datarate << ") "
+                << mcs_legacy_datarates[datarate];
   }
   return true;
 }
