@@ -193,6 +193,8 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
 
 
 bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
+  int nrates = 1;
+  uint8_t rates[32];
 
   /* Create the socket and connect to it. */
   struct nl_sock *sckt = nl_socket_alloc();
@@ -207,6 +209,9 @@ bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
   /* Create the message so it will send a command to the nl80211 interface. */
   genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
 
+  /* Add the device index to the message */
+  nla_put_u32(mesg, NL80211_ATTR_IFINDEX, if_nametoindex(device.c_str()));
+
   /* Configuring rates */
   struct nlattr *nl_rates = nla_nest_start(mesg, NL80211_ATTR_TX_RATES);
 
@@ -214,7 +219,8 @@ bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
   struct nlattr *nl_band = nla_nest_start(mesg, NL80211_BAND_2GHZ);
 
   /* Send the message to change the bitrate. */
-  nla_put(mesg, NL80211_TXRATE_LEGACY, 1, &rate);
+  rates[0] = rate;
+  nla_put(mesg, NL80211_TXRATE_LEGACY, nrates, rates);
   nla_nest_end(mesg, nl_band);
   nla_nest_end(mesg, nl_rates);
 
@@ -225,11 +231,6 @@ bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
   nlmsg_free(mesg);
   nl_socket_free(sckt);
   return true;
-
- nla_put_failure:
-  nlmsg_free(mesg);
-  nl_socket_free(sckt);
-  return false;
 }
 
 bool set_wifi_monitor_mode(const std::string &device) {
