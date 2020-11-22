@@ -560,8 +560,12 @@ bool configure_device(const std::string &device, const std::string &device_type,
     return false;
   }
   if (!set_wifi_txpower(device, txpower)) {
-    LOG_ERROR << "Error setting txpower level on " << device << " to " << txpower;
-    return false;
+    LOG_WARNING << "Unable to set txpower level on " << device << " to " << txpower;
+  }
+  static const uint8_t mcs_legacy_datarates[] = { 5, 11, 18, 24, 36, 48, 54 };
+  if ((mcs < 7) && !set_wifi_legacy_bitrate(device, mcs_legacy_datarates[mcs])) {
+    LOG_WARNING << "Unable to set legacy datarate on " << device << " to "
+                << mcs_legacy_datarates[mcs];
   }
   return true;
 }

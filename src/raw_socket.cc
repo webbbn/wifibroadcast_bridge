@@ -191,6 +191,44 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
   return false;
 }
 
+
+bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate) {
+
+  /* Create the socket and connect to it. */
+  struct nl_sock *sckt = nl_socket_alloc();
+  genl_connect(sckt);
+
+  /* Allocate a new message. */
+  struct nl_msg *mesg = nlmsg_alloc();
+
+  /* Check /usr/include/linux/nl80211.h for a list of commands and attributes. */
+  enum nl80211_commands command = NL80211_CMD_SET_TX_BITRATE_MASK;
+
+  /* Create the message so it will send a command to the nl80211 interface. */
+  genlmsg_put(mesg, 0, 0, genl_ctrl_resolve(sckt, "nl80211"), 0, 0, command, 0);
+
+  /* Configuring rates */
+  struct nlattr *nl_rates = nla_nest_start(mesg, NL80211_ATTR_TX_RATES);
+
+  /* Configuring the 2.4GHz band */
+  struct nlattr *nl_band = nla_nest_start(mesg, NL80211_BAND_2GHZ);
+
+  /* Send the message to change the bitrate. */
+  nla_put(mesg, NL80211_TXRATE_LEGACY, 1, &rate);
+
+  /* Finalize and cleanup */
+  nla_nest_end(mesg, nl_band);
+  nla_nest_end(mesg, nl_rates);
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return true;
+
+ nla_put_failure:
+  nlmsg_free(mesg);
+  nl_socket_free(sckt);
+  return false;
+}
+
 bool set_wifi_monitor_mode(const std::string &device) {
 
   /* The device must be down to change the mode */
@@ -243,11 +281,20 @@ bool set_wifi_monitor_mode(const std::string &device) {
 bool set_wifi_txpower(const std::string &device, uint32_t power_mbm) {
 
   // Write the scaled tx power level to the device register if it exists.
-  FILE *fp = fopen("/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override", "w");
-  if (fp) {
+  FILE *fp;
+  if ((fp = fopen("/sys/module/ath9k_hw/parameters/txpower", "w")) ||
+      (fp = fopen("/sys/module/ath9k_htc/parameters/txpower", "w")) ||
+      (fp = fopen("/sys/module/ath9k/parameters/txpower", "w"))) {
+        uint32_t txpower = static_cast<uint32_t>(rint(power_mbm / 50.0));
+    fprintf(fp, "%d", txpower);
+    fclose(fp);
+    return true;
+  } else if (fp = fopen("/sys/module/88XXau/parameters/rtw_tx_pwr_idx_override", "w")) {
     uint32_t txpower = static_cast<uint32_t>(rint(power_mbm / 50.0));
     fprintf(fp, "%d", txpower);
     fclose(fp);
+  } else {
+    return false;
   }
 
   /* Create the socket and connect to it. */
