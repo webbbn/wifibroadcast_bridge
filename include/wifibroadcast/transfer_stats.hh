@@ -5,6 +5,7 @@
 #include <mutex>
 
 #include <wifibroadcast/fec.hh>
+#include <wifibroadcast/raw_socket.hh>
 
 struct transfer_stats_t {
   transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
@@ -25,6 +26,7 @@ struct transfer_stats_t {
   float pkt_time;
   float latency;
   float rssi;
+  uint32_t port_blocks[RAW_SOCKET_NPORTS];
 };
 
 class TransferStats {
@@ -36,10 +38,10 @@ public:
 
   void add(const FECDecoderStats &cur, const FECDecoderStats &prev);
   void add_rssi(int8_t rssi);
-  void add_send_stats(uint32_t bytes, uint32_t nblocks, uint16_t inject_errors, uint32_t queue_size,
-		      bool flush, float pkt_time);
+  void add_send_block(uint8_t port, uint32_t bytes, bool inject_errors, uint32_t queue_size,
+                      bool flush, float send_time);
   void add_encode_time(float t);
-  void add_send_time(float t);
+  void add_loop_time(float t);
   void add_latency(uint8_t);
   transfer_stats_t get_stats();
 
@@ -68,6 +70,7 @@ private:
   float m_rssi;
   float m_latency;
   std::mutex m_mutex;
+  uint32_t m_port_blocks[RAW_SOCKET_NPORTS];
 };
 
 // Standard OpenHD stats structures.

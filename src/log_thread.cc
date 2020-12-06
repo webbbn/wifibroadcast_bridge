@@ -149,7 +149,6 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
          times,
          static_cast<uint32_t>(std::round(s.latency)),
          static_cast<int16_t>(std::round(rssi)));
-      ps = s;
       std::string oblks = is_ground ?
 	tfm::format("%4d %4d %4d",
 		    (os.blocks_out - pso.blocks_out),
@@ -182,8 +181,18 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
          otimes,
          static_cast<uint32_t>(std::round(os.latency)),
          static_cast<int16_t>(std::round(orssi)));
-      pso = os;
+      std::stringstream ss;
+      ss << "Active ports:  ";
+      for (size_t i = 0; i < RAW_SOCKET_NPORTS; ++i) {
+        uint32_t cnt = s.port_blocks[i] - ps.port_blocks[i];
+        if (cnt > 0) {
+          ss << i << ": " << cnt << "  ";
+        }
+      }
+      LOG_INFO << ss.str();
       last_log = t;
+      ps = s;
+      pso = os;
     }
     last_status = t;
   }

@@ -23,12 +23,15 @@ transfer_stats_t::transfer_stats_t(uint32_t _sequences, uint32_t _blocks_in, uin
     bytes_in(_bytes_in), bytes_out(_bytes_out),
     encode_time(_encode_time), send_time(_send_time), pkt_time(_pkt_time), latency(_latency),
     rssi(_rssi) {
+  std::fill(port_blocks, port_blocks + RAW_SOCKET_NPORTS, 0);
 }
 
 TransferStats::TransferStats(const std::string &name) :
   m_name(name), m_seq(0), m_blocks(0), m_bytes(0), m_block_errors(0), m_seq_errors(0),
   m_send_bytes(0), m_send_blocks(0), m_inject_errors(0), m_flushes(0), m_queue_size(0),
-  m_enc_time(0), m_send_time(0), m_pkt_time(0), m_rssi(0), m_latency(0) {}
+  m_enc_time(0), m_send_time(0), m_pkt_time(0), m_rssi(0), m_latency(0) {
+  std::fill(m_port_blocks, m_port_blocks + RAW_SOCKET_NPORTS, 0);
+}
 
 void TransferStats::add(const FECDecoderStats &cur, const FECDecoderStats &prev) {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -43,15 +46,20 @@ void TransferStats::add_rssi(int8_t rssi) {
   m_rssi = prev_weight * m_rssi + (1.0 - prev_weight) * rssi;
 }
 
-void TransferStats::add_send_stats(uint32_t bytes, uint32_t nblocks, uint16_t inject_errors,
-				   uint32_t queue_size, bool flush, float pkt_time) {
+void TransferStats::add_send_block(uint8_t port, uint32_t bytes, bool inject_error,
+				   uint32_t queue_size, bool flush, float send_time) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_send_bytes += bytes;
-  m_send_blocks += nblocks;
-  m_inject_errors += inject_errors;
+  ++m_send_blocks;
+  if (port <= RAW_SOCKET_NPORTS) {
+    ++m_port_blocks[port];
+  } else {
+    LOG_ERROR << "Invalid raw socket port in TransferStats::add_send_block: " << port;
+  }
+  m_inject_errors += (inject_error ? 1 : 0);
   m_queue_size = prev_weight * m_queue_size + (1.0 - prev_weight) * queue_size;
   m_flushes += (flush ? 1 : 0);
-  m_pkt_time = prev_weight * m_pkt_time + 1e6 * (1.0 - prev_weight) * pkt_time;
+  m_send_time = prev_weight * m_send_time + 1e6 * (1.0 - prev_weight) * send_time;
 }
 
 void TransferStats::add_encode_time(float t) {
@@ -59,9 +67,9 @@ void TransferStats::add_encode_time(float t) {
   m_enc_time = prev_weight * m_enc_time + 1e6 * (1.0 - prev_weight) * t;
 }
 
-void TransferStats::add_send_time(float t) {
+void TransferStats::add_loop_time(float t) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  m_send_time = prev_weight * m_send_time + 1e6 * (1.0 - prev_weight) * t;
+  m_pkt_time = prev_weight * m_pkt_time + 1e6 * (1.0 - prev_weight) * t;
 }
 
 void TransferStats::add_latency(uint8_t t) {
@@ -85,6 +93,7 @@ transfer_stats_t TransferStats::get_stats() {
   stats.inject_errors = m_inject_errors;
   stats.latency = m_latency;
   stats.rssi = static_cast<int8_t>(std::round(m_rssi));
+  std::copy(m_port_blocks, m_port_blocks + RAW_SOCKET_NPORTS, stats.port_blocks);
   return stats;
 }
 

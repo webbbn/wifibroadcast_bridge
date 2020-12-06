@@ -37,29 +37,28 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
     // Transmit any packets that are finished in the encoder.
     size_t queue_size = outqueue.size() + enc->n_output_blocks();
-    uint16_t dropped_blocks = 0;
     size_t count = 0;
     size_t nblocks = 0;
     for (std::shared_ptr<FECBlock> block = enc->get_block(); block;
 	 block = enc->get_block()) {
       double send_start = cur_time();
+      bool dropped = false;
       // If the link is slower than the data rate we need to drop some packets.
       if (block->is_fec_block() &
 	  ((outqueue.size() + enc->n_output_blocks()) > max_queue_size)) {
-	++dropped_blocks;
-	continue;
+        dropped = true;
+      } else {
+        raw_send_sock.send(block->pkt_data(), block->pkt_length(), msg->port,
+                           msg->opts.link_type, msg->opts.data_rate);
+        count += block->pkt_length();
+        ++nblocks;
       }
-      raw_send_sock.send(block->pkt_data(), block->pkt_length(), msg->port,
-			 msg->opts.link_type, msg->opts.data_rate);
-      count += block->pkt_length();
-      ++nblocks;
-      trans_stats.add_send_time(cur_time() - send_start);
-    }
 
-    // Add stats to the accumulator.
-    double cur = cur_time();
-    double loop_time = cur - loop_start;
-    trans_stats.add_send_stats(count, nblocks, dropped_blocks, queue_size, flush, loop_time);
+      // Add stats to the accumulator.
+      trans_stats.add_send_block(msg->port, count, dropped, queue_size, flush,
+                                 cur_time() - send_start);
+    }
+    trans_stats.add_loop_time(cur_time() - loop_start);
   }
 }
 

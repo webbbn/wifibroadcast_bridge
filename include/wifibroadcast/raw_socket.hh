@@ -7,6 +7,8 @@
 
 #include <pcap.h>
 
+#define RAW_SOCKET_NPORTS 16
+
 enum LinkType {
 	       DATA_LINK,
 	       FEC_LINK,
