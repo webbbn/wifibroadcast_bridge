@@ -8,12 +8,11 @@
 #include <logging.hh>
 
 // Retrieve messages from incoming raw socket queue and send the UDP packets.
-void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
-                       TransferStats &stats, TransferStats &stats_other, uint8_t stats_port) {
+void fec_decode_thread(MessageQueue &inqueue, PacketQueueP output_queue, TransferStats &stats) {
   double prev_time = cur_time();
   size_t write_errors = 0;
-  std::vector<FECDecoder> decoders(MAX_PORTS);
-  std::vector<FECDecoderStats> prev_dec_stats(MAX_PORTS);
+  std::vector<FECDecoder> decoders(RAW_SOCKET_NPORTS);
+  std::vector<FECDecoderStats> prev_dec_stats(RAW_SOCKET_NPORTS);
 
   while (1) {
 
@@ -24,7 +23,7 @@ void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
       stats.add_latency(msg->latency_ms);
     }
     uint8_t port = msg->port;
-    if (port >= MAX_PORTS) {
+    if (port >= RAW_SOCKET_NPORTS) {
       continue;
     }
 
@@ -36,14 +35,7 @@ void fec_decode_thread(MessageQueue &inqueue, PacketQueues *output_queues,
     for (std::shared_ptr<FECBlock> block = dec.get_block(); block; block = dec.get_block()) {
       if (block->data_length() > 0) {
         Packet pkt = mkpacket(block->data(), block->data() + block->data_length());
-        for (auto q : output_queues[port]) {
-          q->push(pkt);
-        }
-	// If this is a link status message, parse it and update the stats.
-	if (port == stats_port) {
-	  std::string s(block->data(), block->data() + block->data_length());
-	  stats_other.update(s);
-	}
+        output_queue->push(pkt);
       }
     }
 
@@ -71,7 +63,19 @@ std::string hostname_to_ip(const std::string &hostname) {
   return "";
 }
 
-void udp_send_loop(PacketQueueP q, int send_sock, const std::string host, uint16_t port) {
+void udp_send_loop(PacketQueueP q, const std::string host, uint16_t port) {
+
+  // Try to open a UDP socket.
+  int send_sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (send_sock < 0) {
+    LOG_ERROR << "Error opening the UDP receive socket.";
+    return;
+  }
+
+  // Set the socket options.
+  int optval = 1;
+  setsockopt(send_sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
+  setsockopt(send_sock, SOL_SOCKET, SO_BROADCAST, (const void *)&optval, sizeof(optval));
 
   // Initialize the UDP output socket.
   struct sockaddr_in s;
@@ -84,12 +88,5 @@ void udp_send_loop(PacketQueueP q, int send_sock, const std::string host, uint16
     Packet msg = q->pop();
     sendto(send_sock, msg->data(), msg->size(), 0,
            (struct sockaddr *)&(s), sizeof(struct sockaddr_in));
-  }
-}
-
-void tun_send_loop(PacketQueueP q, std::shared_ptr<TUNInterface> tun_interface) {
-  while (1) {
-    Packet msg = q->pop();
-    tun_interface->write(msg->data(), msg->size());
   }
 }

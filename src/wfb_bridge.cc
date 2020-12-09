@@ -78,9 +78,44 @@ int main(int argc, char** argv) {
   std::string other_mode = (mode == "air") ? "ground" : "air";
   float syslog_period = conf.GetFloat("global", "syslogperiod", 5);
   float status_period = conf.GetFloat("global", "statusperiod", 0.2);
-  uint32_t timeout = conf.GetInteger("global", "timeout", 1000);
-
+  uint32_t timeout_us = conf.GetInteger("global", "timeout", 1000);
+  std::string local_host = conf.Get("global", (mode == "air") ? "air_ip" : "ground_id", "10.1.1.1");
+  std::string remote_host =
+    conf.Get("global", (mode == "air") ? "ground_ip" : "air_id", "10.1.1.1");
+  std::string log_to_host = conf.Get("global", "ground_id", "10.1.1.1");
+  std::string netmask = conf.Get("global", "netmask", "255.255.255.0");
+  uint16_t packed_status_port =
+    static_cast<uint16_t>(conf.GetInteger("global", "packed_status_port", 5800));
+  std::string packed_status_host = conf.Get("global", "packed_status_host", "127.0.0.1");
+  uint16_t blocksize = static_cast<uint16_t>(conf.GetInteger("global", "blocksize", 1400));
+  uint8_t default_blocks = static_cast<uint8_t>(conf.GetInteger("global", "blocks", 8));
+  uint8_t default_fec = static_cast<uint8_t>(conf.GetInteger("global", "fec", 4));
+  std::string default_type = conf.Get("global", "type", "data");
+  uint8_t default_datarate = static_cast<uint8_t>(conf.GetInteger("global", "datarate", 3));
+  uint8_t default_priority = static_cast<uint8_t>(conf.GetInteger("global", "priority", 100));
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
+  uint16_t link_status_ip_port =
+    static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
+  uint16_t link_status_port =
+    static_cast<uint16_t>(conf.GetInteger("link-status", "port", 1));
+
+  // Create the default FEC encoder if requested.
+  WifiOptions def_opts;
+  if (default_type == "data"){
+    def_opts.link_type = DATA_LINK;
+  } else if (default_type == "short") {
+    def_opts.link_type = SHORT_DATA_LINK;
+  } else if (default_type == "rts") {
+    def_opts.link_type = RTS_DATA_LINK;
+  } else {
+    def_opts.link_type = DATA_LINK;
+  }
+  def_opts.data_rate = default_datarate;
+
+  // Allocate the default encoder (blocks contain a 16 bit, 2 byte size field)
+  static const uint8_t length_len = 2;
+  std::shared_ptr<FECEncoder> default_enc(new FECEncoder(default_blocks, default_fec,
+                                                         blocksize + length_len));
 
   // Create the logger
   log4cpp::Appender *console = new log4cpp::OstreamAppender("console", &std::cout);
@@ -95,7 +130,7 @@ int main(int argc, char** argv) {
   LOG_INFO << "wfb_bridge running in " << mode << " mode, logging '"
            << log_level << "' to console and '" << syslog_level << "' to syslog";
 
-  // Create the message queues.
+  // Create the input/output message queues.
   SharedQueue<std::shared_ptr<monitor_message_t> > inqueue(max_queue_size);   // Wifi to UDP
   SharedQueue<std::shared_ptr<Message> > outqueue(max_queue_size);  // UDP to Wifi
 
@@ -112,16 +147,15 @@ int main(int argc, char** argv) {
   UDevInterface udev(reset_wifi);
   thrs.push_back(std::make_shared<std::thread>(std::thread(&UDevInterface::monitor_thread, &udev)));
 
-  // Get the status ports
-  uint8_t status_port = conf.GetInteger("link-status", "port", 0);
-  uint8_t packed_status_port = conf.GetInteger("link-status_packed", "port", 0);
-
   // Get the TUN port if it exists
-  uint8_t tun_port = conf.GetInteger("link-tun", "port", 0);
-  std::shared_ptr<TUNInterface> tun_interface;
-
+  TUNInterface tun_interface;
+  tun_interface.init(local_host, netmask, blocksize);
+  std::map<uint16_t, std::shared_ptr<Message> > port_lut;
+  port_lut[0] = std::shared_ptr<Message>
+    (new Message(blocksize, 1, default_priority, def_opts, default_enc));
+  
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
-  PacketQueues udp_send_queues[MAX_PORTS];
+  PacketQueueP send_queue(new PacketQueue(1000));
   const std::set<std::string> &sections = conf.Sections();
   for (const auto &group : sections) {
 
@@ -143,13 +177,11 @@ int main(int argc, char** argv) {
     uint8_t priority = static_cast<uint8_t>(conf.GetInteger(group, "priority", 100));
 
     // Get the FEC parameters (optional).
-    uint16_t blocksize = static_cast<uint16_t>(conf.GetInteger(group, "blocksize", 1500));
     uint8_t nblocks = static_cast<uint8_t>(conf.GetInteger(group, "blocks", 0));
     uint8_t nfec_blocks = static_cast<uint8_t>(conf.GetInteger(group, "fec", 0));
     bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
     // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
-    static const uint8_t length_len = 2;
     std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize + length_len));
 
     // Create the FEC encoder if requested.
@@ -169,144 +201,70 @@ int main(int argc, char** argv) {
     uint16_t rate_target = static_cast<uint16_t>(conf.GetInteger(group, "rate_target", 0));
 
     // Get our receive port number and transmit hosts
-    uint16_t recv_udp_port;
-    std::vector<std::string> send_hosts;
-    if (!parse_portstr(conf, group, mode, recv_udp_port, send_hosts)) {
-      LOG_ERROR << "Error finding/parsing " << mode << " port for " << group;
+    uint16_t ip_port = static_cast<uint16_t>(conf.GetInteger(group, "ip_port", 0));
+    if (ip_port == 0) {
+      LOG_ERROR << "Error IP port for " << group;
       continue;
     }
 
-    // Parse our send port number and receive hosts
-    uint16_t send_udp_port;
-    std::vector<std::string> recv_hosts;
-    if (!parse_portstr(conf, group, other_mode, send_udp_port, recv_hosts)) {
-      LOG_ERROR << "Error finding/parsing " << other_mode << " port for " << group;
-      continue;
-    }
+    // Add the prototype message for this port
+    port_lut[ip_port] = std::shared_ptr<Message>(new Message(blocksize, port, priority, opts, enc));
+  }
 
-    // Create a file logger if requested
-    std::string archive_outdir = conf.Get(group, "archive_outdir", "");
-    if (!archive_outdir.empty()) {
-      PacketQueueP q(new PacketQueue(1000));
-      udp_send_queues[port].push_back(q);
-      // Spawn the archive thread.
-      std::shared_ptr<std::thread> archive_thread
-        (new std::thread([q, port, archive_outdir]() { archive_loop(archive_outdir, q); }));
-      thrs.push_back(archive_thread);
-    }
-    std::string archive_indir = conf.Get(group, "archive_indir", "");
-    PacketQueueP archive_inqueue;
-    if (!archive_indir.empty()) {
-      archive_inqueue.reset(new PacketQueue(1000));
-      // Spawn the archive thread.
-      std::shared_ptr<std::thread> archive_thread
-        (new std::thread([archive_inqueue, port, archive_indir]() {
-                           archive_loop(archive_indir, archive_inqueue);
-                         }));
-      thrs.push_back(archive_thread);
-    }
+  // Create the receive thread for the TUN interface
+  {
+    auto uth =
+      [&tun_interface, &outqueue, &port_lut, timeout_us] () {
+        tun_raw_thread(tun_interface, outqueue, port_lut, timeout_us);
+      };
+    thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
+  }
 
-    // Is this a TUN IP tunnel interface port?
-    bool is_tun = (port == tun_port);
-    if (is_tun) {
-      if (!send_hosts.empty()) {
-        const std::string &tun_host = send_hosts[0];
+  // Create the TUN output thread.
+  {
+    auto tun_send_thr = std::shared_ptr<std::thread>
+      (new std::thread([&tun_interface, send_queue]() {
+                         while (1) {
+                           Packet msg = send_queue->pop();
+                           tun_interface.write(msg->data(), msg->size());
+                         }
+                       }));
+    thrs.push_back(tun_send_thr);
+  }
 
-        // Initizlize the TUN interface
-        tun_interface.reset(new TUNInterface());
-        tun_interface->init(tun_host, "255.255.255.0", blocksize);
+  // Create threads for sending and receiving status packets.
+  PacketQueueP log_out(new PacketQueue(1000));
+  PacketQueueP packed_log_out(new PacketQueue(1000));
+  PacketQueueP log_in(new PacketQueue(1000));
+  LOG_INFO << "Sending status to: " << log_to_host << ":" << link_status_ip_port;
+  auto logts = [log_out, log_to_host, link_status_ip_port] () {
+                 udp_send_loop(log_out, log_to_host, link_status_ip_port);
+                 };
+  thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logts)));
+  LOG_INFO << "Sending packed status to: " << local_host << ":" << packed_status_port;
+  auto plogts = [packed_log_out, packed_status_host, packed_status_port] () {
+                  udp_send_loop(packed_log_out, packed_status_host, packed_status_port);
+                };
+  thrs.push_back(std::shared_ptr<std::thread>(new std::thread(plogts)));
+  LOG_INFO << "Receiving status packets at on port: " << link_status_ip_port;
+  auto logrx = [log_in, link_status_ip_port, blocksize] () {
+                 udp_recv_loop(log_in, "0.0.0.0", link_status_ip_port, blocksize);
+               };
+  thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logrx)));
 
-        // Create the receive thread for the TUN interface
-        auto uth =
-          [tun_interface, enc, opts, priority, blocksize, &outqueue, port,
-           do_fec, rate_target, archive_inqueue]() {
-            tun_raw_thread(tun_interface, enc, opts, priority, blocksize, outqueue, port,
-                           do_fec, rate_target, archive_inqueue);
-          };
-        thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
-
-        // Create the TUN output thread.
-        LOG_INFO << "(" << name << ") Sending TUN packets to: " << tun_host
-                 << " and from " << recv_udp_port;
-        PacketQueueP q(new PacketQueue(max_queue_size, true));
-        udp_send_queues[port].push_back(q);
-        auto tun_send_thr = std::shared_ptr<std::thread>
-          (new std::thread([tun_interface, q]() {
-                             tun_send_loop(q, tun_interface);
-                           }));
-        thrs.push_back(tun_send_thr);
-      }
-      continue;
-    }
-
-    // Create the socket for sending/receiving
-    int sock = open_udp_socket_for_rx(recv_udp_port, "", timeout);
-    if (sock < 0) {
-      LOG_CRITICAL << "Error opening the UDP socket for " << name;
-      continue;
-    }
-
-    // Is this one of the status ports?
-    bool is_status = (port == status_port);
-    bool is_packed_status = (port == packed_status_port);
-
-    // Create the UDP output destinations.
-    for (size_t i = 0; i < send_hosts.size(); ++i) {
-      const std::string &hostname = send_hosts[i];
-      if (is_status) {
-        LOG_INFO << "(" << name << ") Sending status to: " << hostname << ":"
-                 << send_udp_port << " from " << recv_udp_port;
-      } else if (is_packed_status) {
-        LOG_INFO << "(" << name << ") Sending packed status to: " << hostname << ":"
-                 << send_udp_port << " from " << recv_udp_port;
-      } else {
-        LOG_INFO << "(" << name << ") Sending to: " << hostname << ":"
-                 << send_udp_port << " from " << recv_udp_port;
-      }
-      PacketQueueP q(new PacketQueue(max_queue_size, true));
-      udp_send_queues[port].push_back(q);
-      // Create a UDP send thread for this output port
-      auto udp_send_thr = std::shared_ptr<std::thread>
-        (new std::thread([hostname, sock, send_udp_port, port, q]() {
-                           udp_send_loop(q, sock, hostname, send_udp_port);
-                         }));
-      thrs.push_back(udp_send_thr);
-    }
-
-    // Create the logging thread if this is a status down channel.
-    if (is_status) {
-
-      // Create the stats logging thread.
-      std::shared_ptr<Message> msg(new Message(blocksize, port, priority, opts, enc));
-      auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-                    &outqueue, msg, &udp_send_queues, status_port, packed_status_port] {
-                     log_thread(trans_stats, trans_stats_other, syslog_period, status_period,
-                                outqueue, msg, udp_send_queues[status_port],
-                                udp_send_queues[packed_status_port]);
-                   };
-      thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
-
-    } else {
-
-      // Create the receive thread for this socket
-      auto uth =
-        [sock, recv_udp_port, enc, opts, priority, blocksize, &outqueue, port,
-         do_fec, rate_target, archive_inqueue]() {
-          udp_raw_thread(sock, recv_udp_port, enc, opts, priority, blocksize, outqueue, port,
-                         do_fec, rate_target, archive_inqueue);
-        };
-      thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
-    }
-
-    // Increment the port number
-    ++port;
+  // Create the stats logging thread.
+  {
+    auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
+                  log_out, packed_log_out, log_in] {
+                   log_thread(trans_stats, trans_stats_other, syslog_period, status_period,
+                              log_out, packed_log_out, log_in);
+                 };
+    thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
   }
 
   // Create the thread for FEC decode and distributing the messages from incoming raw socket queue
-  auto usth = [&inqueue, &udp_send_queues, &trans_stats, &trans_stats_other, status_port,
-               tun_interface, tun_port]() {
-                fec_decode_thread(inqueue, udp_send_queues, trans_stats, trans_stats_other,
-                                  status_port);
+  auto usth = [&inqueue, send_queue, &trans_stats, &trans_stats_other, link_status_port] () {
+                fec_decode_thread(inqueue, send_queue, trans_stats);
               };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
 
@@ -464,10 +422,10 @@ int main(int argc, char** argv) {
       // Create the raw socket receive thread
       auto recv =
         [raw_recv_sock, &inqueue, &reset_wifi, &trans_stats, &trans_stats_other, relay_queue,
-         timeout]() {
+         timeout_us]() {
           while(!reset_wifi) {
             std::shared_ptr<monitor_message_t> msg(new monitor_message_t);
-            if (raw_recv_sock->receive(*msg, std::chrono::microseconds(timeout))) {
+            if (raw_recv_sock->receive(*msg, std::chrono::microseconds(timeout_us))) {
 
               // Did we stop receiving packets?
               if (!msg->data.empty()) {

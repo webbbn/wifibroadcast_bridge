@@ -63,6 +63,10 @@ void FECEncoder::flush() {
   encode_blocks();
 }
 
+bool FECEncoder::is_flushed() const {
+  return m_in_blocks.empty();
+}
+
 void FECEncoder::encode_blocks() {
   uint8_t num_blocks = m_in_blocks.size();
   if (num_blocks == 0) {
@@ -129,7 +133,7 @@ void FECDecoder::add_block(const uint8_t *buf, uint16_t block_length) {
   ++m_stats.total_packets;
   m_stats.bytes += block_length;
 
-  // Just release the block of FEC is not being performed on this channel.
+  // Just release the block if FEC is not being performed on this channel.
   if ((n_blocks == 0) || (n_fec_blocks == 0)) {
     uint16_t db = (unrolled_seq - unrolled_prev_seq - 1);
     m_stats.dropped_packets += db;

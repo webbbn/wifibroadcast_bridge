@@ -10,7 +10,7 @@ public:
 
   bool init(const std::string &ip_addr, const std::string &subnet_mask, uint16_t mtu);
 
-  bool read(std::vector<uint8_t> &buf, uint32_t timeout_us = 0);
+  bool read(std::vector<uint8_t> &buf, uint16_t &ip_port, uint32_t timeout_us = 0);
   bool write(const uint8_t *data, size_t size);
 
 private:

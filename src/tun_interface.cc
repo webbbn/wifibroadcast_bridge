@@ -112,7 +112,7 @@ bool TUNInterface::init(const std::string &ip_addr, const std::string &subnet_ma
   return true;
 }
 
-bool TUNInterface::read(std::vector<uint8_t> &buf, uint32_t timeout_us) {
+bool TUNInterface::read(std::vector<uint8_t> &buf, uint16_t &ip_port, uint32_t timeout_us) {
   if (buf.empty()) {
     return false;
   }
@@ -141,6 +141,14 @@ bool TUNInterface::read(std::vector<uint8_t> &buf, uint32_t timeout_us) {
     return false;
   }
   buf.resize(nread);
+
+  // Parse IP port out of the header.
+  if (nread > 23) {
+    ip_port = (static_cast<uint16_t>(buf[22]) << 8) | static_cast<uint16_t>(buf[23]);
+  } else {
+    ip_port = 0;
+  }
+
   return true;
 }
 

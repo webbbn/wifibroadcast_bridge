@@ -110,8 +110,14 @@ bool parse_next(tmpl__T &v, std::istringstream &ss) {
 bool TransferStats::update(const std::string &s) {
   std::lock_guard<std::mutex> lock(m_mutex);
   std::istringstream ss(s);
-  return (parse_next(m_name, ss) &&
-	  parse_next(m_seq, ss) &&
+  std::string name;
+  if(!parse_next(name, ss)) {
+    return false;
+  }
+  if (name == m_name) {
+    return true; // Just ignore the other status messages.
+  }
+  return (parse_next(m_seq, ss) &&
 	  parse_next(m_blocks, ss) &&
 	  parse_next(m_bytes, ss) &&
 	  parse_next(m_block_errors, ss) &&

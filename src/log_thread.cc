@@ -25,9 +25,8 @@ uint32_t kbps(tmpl__T v1, tmpl__T v2, double time) {
 
 // Send status messages to the other radio and log the FEC stats periodically
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
-		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, PacketQueues &log_out,
-                PacketQueues &packed_log_out) {
+		float status_period, PacketQueueP log_out, PacketQueueP packed_log_out,
+                PacketQueueP log_in) {
   bool is_ground = (stats.name() == "ground");
 
   uint32_t loop_period =
@@ -45,6 +44,16 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
   double last_status = cur_time();
   while (true) {
     std::this_thread::sleep_for(std::chrono::milliseconds(loop_period));
+
+    // Try to fetch a status message from the other side
+    Packet block;
+    if (log_in->try_pop(block)) {
+      std::string s(block->data(), block->data() + block->size());
+      if (!stats_other.update(s)) {
+        LOG_WARNING << "Error parsing status string: " << s;
+      }
+    }
+
     double t = cur_time();
     transfer_stats_t s = stats.get_stats();
     transfer_stats_t os = stats_other.get_stats();
@@ -57,19 +66,11 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
     double stat_dur = t - last_stat;
     if (stat_dur > status_period) {
 
-      // I don't see any reason to send status upstream currently.
-      if (!is_ground) {
-	std::shared_ptr<Message> omsg = msg->create(stats.serialize());
-	outqueue.push(omsg);
-      }
-
       // Send the local status out the UDP port
       std::string outmsg = stats.serialize();
       {
         Packet pkt = mkpacket(outmsg.c_str(), outmsg.c_str() + outmsg.length());
-        for (auto q : log_out) {
-          q->push(pkt);
-        }
+        log_out->push(pkt);
       }
 
       // Create the packed status message and send it.
@@ -104,9 +105,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
 	rxs.adapter[0].signal_good = (rssi > -100);
         Packet pkt = mkpacket(reinterpret_cast<uint8_t*>(&rxs),
                               reinterpret_cast<uint8_t*>(&rxs) + sizeof(rxs));
-        for (auto q : packed_log_out) {
-          q->push(pkt);
-        }
+        packed_log_out->push(pkt);
 	pps = s;
       }
 

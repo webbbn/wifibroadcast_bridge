@@ -159,6 +159,14 @@ public:
 
   // Complete the sequence with the current set of blocks
   void flush();
+  bool is_flushed() const;
+
+  uint8_t num_blocks() const {
+    return m_num_blocks;
+  }
+  uint8_t num_fec_blocks() const {
+    return m_num_fec_blocks;
+  }
 
 private:
   uint8_t m_seq_num;

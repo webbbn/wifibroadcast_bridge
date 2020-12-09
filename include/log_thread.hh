@@ -23,6 +23,11 @@ struct Message {
     std::copy(s.begin(), s.end(), ret->msg.begin());
     return ret;
   }
+  std::shared_ptr<Message> copy(const std::vector<uint8_t> &data) const {
+    std::shared_ptr<Message> ret(new Message(data.size(), port, priority, opts, enc));
+    std::copy(data.begin(), data.end(), ret->msg.begin());
+    return ret;
+  }
   std::vector<uint8_t> msg;
   uint8_t port;
   uint8_t priority;
@@ -31,5 +36,5 @@ struct Message {
 };
 
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
-		float status_period, SharedQueue<std::shared_ptr<Message> > &outqueue,
-		std::shared_ptr<Message> msg, PacketQueues &log_out, PacketQueues &packed_log_out);
+		float status_period, PacketQueueP log_out, PacketQueueP packed_log_out,
+                PacketQueueP log_in);

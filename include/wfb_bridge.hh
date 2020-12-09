@@ -13,8 +13,6 @@
 #include <shared_queue.hh>
 #include <logging.hh>
 
-#define MAX_PORTS 64
-
 inline double cur_time() {
   struct timeval t;
   gettimeofday(&t, 0);

@@ -23,6 +23,20 @@ public:
     return item;
   }
 
+  bool try_pop(tmpl__T &v) {
+    std::unique_lock<std::mutex> lock_guard(m_mutex);
+
+    if (m_queue.empty()) {
+      return false;
+    }
+
+    m_cond.wait(lock_guard);
+
+    v = m_queue.front();
+    m_queue.pop_front();
+    return true;
+  }
+
   void push(tmpl__T item) {
     std::unique_lock<std::mutex> lock_guard(m_mutex);
     if ((m_queue.size() >= m_max_size) && m_clear_on_full) {
