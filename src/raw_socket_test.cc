@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
   std::string device = options.get<std::string>("D");
   bool receiver = options.get<bool>("r");
   bool verbose = options.get<bool>("v");
+  uint16_t mtu = length + FEC_OVERHEAD + RAW_SOCKET_OVERHEAD;
 
   // Configure logging
   log4cpp::Appender *appender1 = new log4cpp::OstreamAppender("console", &std::cout);
@@ -115,7 +116,7 @@ int main(int argc, char** argv) {
     FECDecoder dec;
 
     // Try to open the device
-    RawReceiveSocket raw_recv_sock(true);
+    RawReceiveSocket raw_recv_sock(true, mtu);
     if (raw_recv_sock.add_device(device)) {
       LOG_DEBUG << "Receiving on interface: " << device;
     } else {
@@ -171,7 +172,7 @@ int main(int argc, char** argv) {
     FECEncoder enc(num_data_blocks, num_fec_blocks, length);
 
     // Try to open the device
-    RawSendSocket raw_send_sock(false);
+    RawSendSocket raw_send_sock(false, mtu);
     if (raw_send_sock.add_device(device, true, true, true, true)) {
       LOG_DEBUG << "Transmitting on interface: " << device;
     } else {

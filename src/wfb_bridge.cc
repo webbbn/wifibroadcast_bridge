@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   uint16_t packed_status_port =
     static_cast<uint16_t>(conf.GetInteger("global", "packed_status_port", 5800));
   std::string packed_status_host = conf.Get("global", "packed_status_host", "127.0.0.1");
-  uint16_t blocksize = static_cast<uint16_t>(conf.GetInteger("global", "blocksize", 1400));
+  uint16_t mtu = static_cast<uint16_t>(conf.GetInteger("global", "mtu", 1400));
   uint8_t default_blocks = static_cast<uint8_t>(conf.GetInteger("global", "blocks", 8));
   uint8_t default_fec = static_cast<uint8_t>(conf.GetInteger("global", "fec", 4));
   std::string default_type = conf.Get("global", "type", "data");
@@ -98,6 +98,9 @@ int main(int argc, char** argv) {
     static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
   uint16_t link_status_port =
     static_cast<uint16_t>(conf.GetInteger("link-status", "port", 1));
+
+  // Calculate the maximum data block size
+  uint16_t blocksize = mtu - TUN_OVERHEAD - FEC_OVERHEAD - RAW_SOCKET_OVERHEAD;
 
   // Create the default FEC encoder if requested.
   WifiOptions def_opts;
@@ -112,10 +115,9 @@ int main(int argc, char** argv) {
   }
   def_opts.data_rate = default_datarate;
 
-  // Allocate the default encoder (blocks contain a 16 bit, 2 byte size field)
+  // Allocate the default encoder
   static const uint8_t length_len = 2;
-  std::shared_ptr<FECEncoder> default_enc(new FECEncoder(default_blocks, default_fec,
-                                                         blocksize + length_len));
+  std::shared_ptr<FECEncoder> default_enc(new FECEncoder(default_blocks, default_fec, blocksize));
 
   // Create the logger
   log4cpp::Appender *console = new log4cpp::OstreamAppender("console", &std::cout);
@@ -182,7 +184,7 @@ int main(int argc, char** argv) {
     bool do_fec = ((nblocks > 0) && (nfec_blocks > 0));
 
     // Allocate the encoder (blocks contain a 16 bit, 2 byte size field)
-    std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize + length_len));
+    std::shared_ptr<FECEncoder> enc(new FECEncoder(nblocks, nfec_blocks, blocksize));
 
     // Create the FEC encoder if requested.
     WifiOptions opts;
@@ -335,7 +337,7 @@ int main(int argc, char** argv) {
       }
 
       // Create the raw socket
-      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground"));
+      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground", mtu));
 
       // Connect to the raw wifi interfaces.
       if (raw_send_sock->add_device(device, true, mcs, stbc, ldpc)) {
@@ -372,7 +374,7 @@ int main(int argc, char** argv) {
       }
 
       // Create the raw socket
-      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground"));
+      std::shared_ptr<RawSendSocket> raw_send_sock(new RawSendSocket(dev_mode == "ground", mtu));
 
       // Connect to the raw wifi interfaces.
       if (raw_send_sock->add_device(device, true, mcs, stbc, ldpc)) {
@@ -409,7 +411,8 @@ int main(int argc, char** argv) {
       }
 
       // Open the raw receive socket
-      std::shared_ptr<RawReceiveSocket> raw_recv_sock(new RawReceiveSocket(dev_mode == "ground"));
+      std::shared_ptr<RawReceiveSocket>
+        raw_recv_sock(new RawReceiveSocket(dev_mode == "ground", mtu));
       if (raw_recv_sock->add_device(device)) {
         LOG_INFO << "Receiving on interface: " << device << " of type " << device_type;
       } else {

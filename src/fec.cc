@@ -13,8 +13,8 @@
 
 FECEncoder::FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size,
 		       uint8_t start_seq_num) :
-  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks), m_max_block_size(max_block_size),
-  m_seq_num(start_seq_num) {
+  m_num_blocks(num_blocks), m_num_fec_blocks(num_fec_blocks),
+  m_max_block_size(max_block_size), m_seq_num(start_seq_num) {
   // Ensure that the FEC library is initialized
   // This may not work with multiple threads!
   fec_init();
@@ -375,7 +375,7 @@ FECBufferEncoder::encode_buffer(const uint8_t *buf, size_t len) {
 
   // Create the encoder
   uint8_t nfecblocks = static_cast<uint8_t>(std::ceil(nblocks * m_fec_ratio));
-  FECEncoder enc(nblocks, nfecblocks, m_max_block_size + 2, m_seq_num++);
+  FECEncoder enc(nblocks, nfecblocks, m_max_block_size, m_seq_num++);
   if (m_seq_num == 0) {
     ++m_seq_num;
   }

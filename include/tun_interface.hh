@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#define TUN_OVERHEAD 28
+
 class TUNInterface {
 public:
 

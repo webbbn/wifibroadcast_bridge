@@ -348,12 +348,12 @@ inline uint16_t cur_milliseconds() {
  * RawSendSocket
  *****************************************************************************/
 
-RawSendSocket::RawSendSocket(bool ground, uint32_t send_buffer_size, uint32_t max_packet) :
-  m_ground(ground), m_mcs(false), m_stbc(false), m_ldpc(false), m_max_packet(max_packet) {
+RawSendSocket::RawSendSocket(bool ground, uint16_t mtu) :
+  m_ground(ground), m_mcs(false), m_stbc(false), m_ldpc(false), m_mtu(mtu) {
   size_t max_header = std::max(sizeof(radiotap_header_legacy), sizeof(radiotap_header_mcs));
 
   // Create the send buffer with the appropriate headers.
-  m_send_buf.resize(max_header + sizeof(ieee_header_data) + max_packet);
+  m_send_buf.resize(max_header + mtu);
 }
 
 bool RawSendSocket::add_device(const std::string &device, bool silent,
@@ -424,7 +424,8 @@ bool RawSendSocket::add_device(const std::string &device, bool silent,
     return false;
   }
 
-  if (setsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &m_buffer_size, sizeof(m_buffer_size)) < 0) {
+  uint32_t buffer_size = PCAP_PACKET_CAPTURE_SIZE;
+  if (setsockopt(m_sock, SOL_SOCKET, SO_SNDBUF, &buffer_size, sizeof(buffer_size)) < 0) {
     if (!silent) {
       LOG_ERROR << "setsockopt SO_SNDBUF";
     }
@@ -508,7 +509,11 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
 
     break;
   }
-
+  if ((msglen + ieee_hlen) > m_mtu) {
+    LOG_ERROR << "Message size is too large in RawSendSocket::send: "
+              << (msglen + ieee_hlen) << " (mtu=" << m_mtu << ")";
+    return false;
+  }
   // Set the port in the header
   m_send_buf[rt_hlen + 4] = (((port & 0xf) << 4) | (m_ground ? 0xd : 0x5));
 
@@ -523,8 +528,8 @@ bool RawSendSocket::send(const uint8_t *msg, size_t msglen, uint8_t port, LinkTy
  * RawReceiveSocket
  *****************************************************************************/
 
-RawReceiveSocket::RawReceiveSocket(bool ground, uint32_t max_packet) :
-  m_ground(ground), m_max_packet(max_packet) {
+RawReceiveSocket::RawReceiveSocket(bool ground, uint16_t mtu) :
+  m_ground(ground), m_mtu(mtu) {
 }
 
 bool RawReceiveSocket::add_device(const std::string &device) {

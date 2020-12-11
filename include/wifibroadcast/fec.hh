@@ -27,37 +27,10 @@ struct __attribute__((__packed__)) FECHeader {
   uint16_t length;
 };
 
+#define FEC_OVERHEAD (sizeof(FECHeader))
+
 class FECBlock {
 public:
-  FECBlock(uint8_t seq_num, uint8_t block, uint8_t nblocks, uint8_t nfec_blocks,
-	   uint16_t max_block_len, uint16_t data_length) {
-    m_data_length = max_block_len + sizeof(FECHeader) - 2;
-    m_data.reset(new uint8_t[m_data_length]);
-    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
-    FECHeader *h = header();
-    h->seq_num = seq_num;
-    h->block = block;
-    h->n_blocks = nblocks;
-    h->n_fec_blocks = nfec_blocks;
-    h->length = data_length;
-  }
-
-  // Create a block from a packet buffer
-  FECBlock(const uint8_t *buf, uint16_t pkt_length) {
-    m_data_length = pkt_length;
-    m_data.reset(new uint8_t[m_data_length]);
-    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
-    std::copy(buf, buf + pkt_length, m_data.get());
-  }
-
-  // Create a block from an existing header
-  FECBlock(const FECHeader &h, uint16_t block_length) {
-    m_data_length = block_length + sizeof(FECHeader) - 2;
-    m_data.reset(new uint8_t[m_data_length]);
-    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
-    *header() = h;
-    data_length(block_length - 2);
-  }
 
   // The FEC block size, which includes the data and data length fields
   uint16_t block_size() const {
@@ -128,6 +101,40 @@ public:
     return header()->seq_num;
   }
 
+protected:
+  FECBlock(uint8_t seq_num, uint8_t block, uint8_t nblocks, uint8_t nfec_blocks,
+	   uint16_t max_block_len, uint16_t data_length) {
+    m_data_length = max_block_len + sizeof(FECHeader) - 2;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
+    FECHeader *h = header();
+    h->seq_num = seq_num;
+    h->block = block;
+    h->n_blocks = nblocks;
+    h->n_fec_blocks = nfec_blocks;
+    h->length = data_length;
+  }
+
+  // Create a block from a packet buffer
+  FECBlock(const uint8_t *buf, uint16_t pkt_length) {
+    m_data_length = pkt_length;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
+    std::copy(buf, buf + pkt_length, m_data.get());
+  }
+
+  // Create a block from an existing header
+  FECBlock(const FECHeader &h, uint16_t block_length) {
+    m_data_length = block_length + sizeof(FECHeader) - 2;
+    m_data.reset(new uint8_t[m_data_length]);
+    std::fill(m_data.get(), m_data.get() + m_data_length, 0);
+    *header() = h;
+    data_length(block_length - 2);
+  }
+
+  friend class FECEncoder;
+  friend class FECDecoder;
+
 private:
   std::unique_ptr<uint8_t> m_data;
   uint16_t m_data_length;
@@ -136,7 +143,7 @@ private:
 class FECEncoder {
 public:
 
-  FECEncoder(uint8_t num_blocks = 8, uint8_t num_fec_blocks = 4, uint16_t max_block_size = 1500,
+  FECEncoder(uint8_t num_blocks, uint8_t num_fec_blocks, uint16_t max_block_size,
 	     uint8_t start_seq_num = 1);
 
   // Get a new data block

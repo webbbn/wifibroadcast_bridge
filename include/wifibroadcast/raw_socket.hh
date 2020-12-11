@@ -7,6 +7,7 @@
 
 #include <pcap.h>
 
+#define RAW_SOCKET_OVERHEAD 24
 #define RAW_SOCKET_NPORTS 16
 
 enum LinkType {
@@ -54,7 +55,7 @@ bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate);
 
 class RawSendSocket {
 public:
-  RawSendSocket(bool ground, uint32_t buffer_size = 131072, uint32_t max_packet = 65535);
+  RawSendSocket(bool ground, uint16_t mtu);
 
   bool error() const {
     return (m_sock < 0);
@@ -76,8 +77,7 @@ private:
   bool m_mcs;
   bool m_stbc;
   bool m_ldpc;
-  uint32_t m_max_packet;
-  uint32_t m_buffer_size;
+  uint16_t m_mtu;
   int m_sock;
   std::vector<uint8_t> m_send_buf;
 };
@@ -85,7 +85,7 @@ private:
 class RawReceiveSocket {
 public:
   
-  RawReceiveSocket(bool ground, uint32_t max_packet = 65535);
+  RawReceiveSocket(bool ground, uint16_t mtu);
 
   bool add_device(const std::string &device);
 
@@ -93,7 +93,7 @@ public:
 
 private:
   bool m_ground;
-  uint32_t m_max_packet;
+  uint16_t m_mtu;
   pcap_t *m_ppcap;
   int m_selectable_fd;
 };
