@@ -35,6 +35,35 @@ inline Packet mkpacket(tmpl__Itr begin, tmpl__Itr end) {
   return Packet(new std::vector<uint8_t>(begin, end));
 }
 
+struct WifiOptions {
+  WifiOptions(LinkType type = DATA_LINK, uint8_t rate = 18) :
+    link_type(type), data_rate(rate) { }
+  LinkType link_type;
+  uint8_t data_rate;
+};
+
+struct Message {
+  Message() : port(0), priority(0) {}
+  Message(size_t max_packet, uint8_t p, uint8_t pri, WifiOptions opt,
+	  std::shared_ptr<FECEncoder> e) :
+    msg(max_packet), port(p), priority(pri), opts(opt), enc(e) { }
+  std::shared_ptr<Message> create(const std::string &s) {
+    std::shared_ptr<Message> ret(new Message(s.length(), port, priority, opts, enc));
+    std::copy(s.begin(), s.end(), ret->msg.begin());
+    return ret;
+  }
+  std::shared_ptr<Message> copy(const std::vector<uint8_t> &data) const {
+    std::shared_ptr<Message> ret(new Message(data.size(), port, priority, opts, enc));
+    std::copy(data.begin(), data.end(), ret->msg.begin());
+    return ret;
+  }
+  std::vector<uint8_t> msg;
+  uint8_t port;
+  uint8_t priority;
+  WifiOptions opts;
+  std::shared_ptr<FECEncoder> enc;
+};
+
 static void splitstr(const std::string& str, std::vector<std::string> &tokens, char delim) {
   std::istringstream iss(str);
   std::string token;

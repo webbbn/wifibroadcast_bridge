@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "2.0")
+set(VERSION "2.01")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -101,6 +101,7 @@ add_executable(wfb_bridge
   src/transfer_stats.cc
   src/udp_send.cc
   src/udp_receive.cc
+  src/tun_raw_interface.cc
   src/log_thread.cc
   src/raw_send_thread.cc
   src/udev_interface.cc
