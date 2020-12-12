@@ -88,11 +88,6 @@ int main(int argc, char** argv) {
     static_cast<uint16_t>(conf.GetInteger("global", "packed_status_port", 5800));
   std::string packed_status_host = conf.Get("global", "packed_status_host", "127.0.0.1");
   uint16_t mtu = static_cast<uint16_t>(conf.GetInteger("global", "mtu", 1466));
-  uint8_t default_blocks = static_cast<uint8_t>(conf.GetInteger("global", "blocks", 8));
-  uint8_t default_fec = static_cast<uint8_t>(conf.GetInteger("global", "fec", 4));
-  std::string default_type = conf.Get("global", "type", "data");
-  uint8_t default_datarate = static_cast<uint8_t>(conf.GetInteger("global", "datarate", 3));
-  uint8_t default_priority = static_cast<uint8_t>(conf.GetInteger("global", "priority", 100));
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
   uint16_t link_status_ip_port =
     static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
@@ -101,23 +96,6 @@ int main(int argc, char** argv) {
 
   // Calculate the maximum data block size
   uint16_t blocksize = mtu - FEC_OVERHEAD - RAW_SOCKET_OVERHEAD;
-
-  // Create the default FEC encoder if requested.
-  WifiOptions def_opts;
-  if (default_type == "data"){
-    def_opts.link_type = DATA_LINK;
-  } else if (default_type == "short") {
-    def_opts.link_type = SHORT_DATA_LINK;
-  } else if (default_type == "rts") {
-    def_opts.link_type = RTS_DATA_LINK;
-  } else {
-    def_opts.link_type = DATA_LINK;
-  }
-  def_opts.data_rate = default_datarate;
-
-  // Allocate the default encoder
-  static const uint8_t length_len = 2;
-  std::shared_ptr<FECEncoder> default_enc(new FECEncoder(default_blocks, default_fec, blocksize));
 
   // Create the logger
   log4cpp::Appender *console = new log4cpp::OstreamAppender("console", &std::cout);
@@ -149,16 +127,17 @@ int main(int argc, char** argv) {
   UDevInterface udev(reset_wifi);
   thrs.push_back(std::make_shared<std::thread>(std::thread(&UDevInterface::monitor_thread, &udev)));
 
-  // Get the TUN port if it exists
+  // Create the TUN interface
   TUNInterface tun_interface;
   tun_interface.init(local_host, netmask, blocksize);
+
+  // Create a lookup table that stores the link parameters for each IP port
   std::map<uint16_t, std::shared_ptr<Message> > port_lut;
-  port_lut[0] = std::shared_ptr<Message>
-    (new Message(blocksize, 1, default_priority, def_opts, default_enc));
-  
+
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   PacketQueueP send_queue(new PacketQueue(1000));
   const std::set<std::string> &sections = conf.Sections();
+  uint8_t port = 0;
   for (const auto &group : sections) {
 
     // Ignore sections that don't start with 'link-'
@@ -168,9 +147,6 @@ int main(int argc, char** argv) {
 
     // Get the name.
     std::string name = conf.Get(group, "name", "");
-
-    // Get the port number
-    uint8_t port = conf.GetInteger(group, "port", 0);
 
     // Get the link type
     std::string type = conf.Get(group, "type", "data");
@@ -204,13 +180,11 @@ int main(int argc, char** argv) {
 
     // Get our receive port number and transmit hosts
     uint16_t ip_port = static_cast<uint16_t>(conf.GetInteger(group, "ip_port", 0));
-    if (ip_port == 0) {
-      LOG_ERROR << "Error IP port for " << group;
-      continue;
-    }
 
     // Add the prototype message for this port
     port_lut[ip_port] = std::shared_ptr<Message>(new Message(blocksize, port, priority, opts, enc));
+
+    port++;
   }
 
   // Create the receive thread for the TUN interface

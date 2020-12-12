@@ -30,8 +30,6 @@ public:
       return false;
     }
 
-    m_cond.wait(lock_guard);
-
     v = m_queue.front();
     m_queue.pop_front();
     return true;
