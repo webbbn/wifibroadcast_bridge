@@ -15,6 +15,9 @@
 #include <logging.hh>
 #include <wfb_bridge.hh>
 
+#define PROTOCOL_UDP 0x11
+#define PROTOCOL_TCP 0x06
+
 TUNInterface::TUNInterface(const std::string &dev_name, const std::string &tundev)
   : m_dev_name(dev_name), m_tun_dev(tundev), m_fd(0) {
 }
@@ -143,8 +146,14 @@ bool TUNInterface::read(std::vector<uint8_t> &buf, uint16_t &ip_port, uint32_t t
   }
   buf.resize(nread);
 
+  // Extract the protocol from the IP header.
+  uint8_t protocol;
+  if (nread > 9) {
+    protocol = buf[9];
+  }
+
   // Parse IP port out of the header.
-  if (nread > 23) {
+  if (((protocol == PROTOCOL_UDP) || (protocol == PROTOCOL_TCP)) && (nread > 23)) {
     ip_port = (static_cast<uint16_t>(buf[22]) << 8) | static_cast<uint16_t>(buf[23]);
   } else {
     ip_port = 0;
@@ -192,14 +201,14 @@ void tun_raw_thread(TUNInterface &tun_interface,
       }
 
       // Add the mesage to the output queue
-      outqueue.push(proto->copy(msg));
+      outqueue.push(proto->copy(msg, ip_port));
 
     } else {
       // flush all the encoders that are not flushed
       for (auto itr : port_lut) {
         auto proto = itr.second;
         if (!proto->enc->is_flushed()) {
-          outqueue.push(proto->copy(std::vector<uint8_t>()));
+          outqueue.push(proto->copy(std::vector<uint8_t>(), proto->ip_port));
         }
       }
     }

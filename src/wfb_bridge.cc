@@ -132,7 +132,8 @@ int main(int argc, char** argv) {
   tun_interface.init(local_host, netmask, blocksize);
 
   // Create a lookup table that stores the link parameters for each IP port
-  std::map<uint16_t, std::shared_ptr<Message> > port_lut;
+  std::map<uint16_t, std::shared_ptr<Message> > port_msg_lut;
+  uint16_t port_lut[RAW_SOCKET_NPORTS];
 
   // Create the interfaces to FEC decoders and send out the blocks received off the raw socket.
   PacketQueueP send_queue(new PacketQueue(1000));
@@ -182,7 +183,9 @@ int main(int argc, char** argv) {
     uint16_t ip_port = static_cast<uint16_t>(conf.GetInteger(group, "ip_port", 0));
 
     // Add the prototype message for this port
-    port_lut[ip_port] = std::shared_ptr<Message>(new Message(blocksize, port, priority, opts, enc));
+    port_msg_lut[ip_port] =
+      std::shared_ptr<Message>(new Message(blocksize, port, ip_port, priority, opts, enc));
+    port_lut[port] = ip_port;
 
     port++;
   }
@@ -190,8 +193,8 @@ int main(int argc, char** argv) {
   // Create the receive thread for the TUN interface
   {
     auto uth =
-      [&tun_interface, &outqueue, &port_lut, timeout_us] () {
-        tun_raw_thread(tun_interface, outqueue, port_lut, timeout_us);
+      [&tun_interface, &outqueue, &port_msg_lut, timeout_us] () {
+        tun_raw_thread(tun_interface, outqueue, port_msg_lut, timeout_us);
       };
     thrs.push_back(std::shared_ptr<std::thread>(new std::thread(uth)));
   }
@@ -231,9 +234,9 @@ int main(int argc, char** argv) {
   // Create the stats logging thread.
   {
     auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-                  log_out, packed_log_out, log_in] {
+                  log_out, packed_log_out, log_in, port_lut] {
                    log_thread(trans_stats, trans_stats_other, syslog_period, status_period,
-                              log_out, packed_log_out, log_in);
+                              log_out, packed_log_out, log_in, port_lut);
                  };
     thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logth)));
   }

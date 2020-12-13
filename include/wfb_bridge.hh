@@ -43,22 +43,23 @@ struct WifiOptions {
 };
 
 struct Message {
-  Message() : port(0), priority(0) {}
-  Message(size_t max_packet, uint8_t p, uint8_t pri, WifiOptions opt,
+  Message() : port(0), ip_port(0), priority(0) {}
+  Message(size_t max_packet, uint8_t p, uint16_t ip, uint8_t pri, WifiOptions opt,
 	  std::shared_ptr<FECEncoder> e) :
-    msg(max_packet), port(p), priority(pri), opts(opt), enc(e) { }
-  std::shared_ptr<Message> create(const std::string &s) {
-    std::shared_ptr<Message> ret(new Message(s.length(), port, priority, opts, enc));
+    msg(max_packet), port(p), ip_port(ip), priority(pri), opts(opt), enc(e) { }
+  std::shared_ptr<Message> create(const std::string &s, uint16_t ip) {
+    std::shared_ptr<Message> ret(new Message(s.length(), port, ip, priority, opts, enc));
     std::copy(s.begin(), s.end(), ret->msg.begin());
     return ret;
   }
-  std::shared_ptr<Message> copy(const std::vector<uint8_t> &data) const {
-    std::shared_ptr<Message> ret(new Message(data.size(), port, priority, opts, enc));
+  std::shared_ptr<Message> copy(const std::vector<uint8_t> &data, uint16_t ip) const {
+    std::shared_ptr<Message> ret(new Message(data.size(), port, ip, priority, opts, enc));
     std::copy(data.begin(), data.end(), ret->msg.begin());
     return ret;
   }
   std::vector<uint8_t> msg;
   uint8_t port;
+  uint16_t ip_port;
   uint8_t priority;
   WifiOptions opts;
   std::shared_ptr<FECEncoder> enc;

@@ -2,10 +2,30 @@
 #pragma once
 
 #include <string>
+#include <ostream>
 #include <mutex>
+#include <map>
 
 #include <wifibroadcast/fec.hh>
 #include <wifibroadcast/raw_socket.hh>
+
+struct BlockBytes {
+  BlockBytes() : blocks(0), bytes(0) {}
+  BlockBytes(uint32_t bl, uint64_t by) : blocks(bl), bytes(by) {}
+  BlockBytes(const BlockBytes &bb) : blocks(bb.blocks), bytes(bb.bytes) {}
+  BlockBytes operator -(const BlockBytes &bb) {
+    return BlockBytes(blocks - bb.blocks, bytes - bb.bytes);
+  }
+  uint64_t operator +=(uint32_t by) {
+    ++blocks;
+    bytes += by;
+    return bytes;
+  }
+  uint32_t blocks;
+  uint64_t bytes;
+};
+
+std::ostream &operator <<(std::ostream &os, const BlockBytes &bb);
 
 struct transfer_stats_t {
   transfer_stats_t(uint32_t _sequences = 0, uint32_t _blocks_in = 0, uint32_t _blocks_out = 0,
@@ -27,6 +47,7 @@ struct transfer_stats_t {
   float latency;
   float rssi;
   uint32_t port_blocks[RAW_SOCKET_NPORTS];
+  std::map<uint16_t, BlockBytes> ip_port_blocks;
 };
 
 class TransferStats {
@@ -38,8 +59,8 @@ public:
 
   void add(const FECDecoderStats &cur, const FECDecoderStats &prev);
   void add_rssi(int8_t rssi);
-  void add_send_block(uint8_t port, uint32_t bytes, bool inject_errors, uint32_t queue_size,
-                      bool flush, float send_time);
+  void add_send_block(uint8_t port, uint16_t ip_port, uint32_t bytes, bool inject_errors,
+                      uint32_t queue_size, bool flush, float send_time);
   void add_encode_time(float t);
   void add_loop_time(float t);
   void add_latency(uint8_t);
@@ -71,6 +92,7 @@ private:
   float m_latency;
   std::mutex m_mutex;
   uint32_t m_port_blocks[RAW_SOCKET_NPORTS];
+  std::map<uint16_t, BlockBytes> m_ip_port_blocks;
 };
 
 // Standard OpenHD stats structures.

@@ -53,7 +53,7 @@ void raw_send_thread(SharedQueue<std::shared_ptr<Message> > &outqueue,
 
       // Add stats to the accumulator.
       size_t queue_size = outqueue.size() + enc->n_output_blocks();
-      trans_stats.add_send_block(msg->port, count, dropped, queue_size, flush,
+      trans_stats.add_send_block(msg->port, msg->ip_port, count, dropped, queue_size, flush,
                                  cur_time() - send_start);
     }
     trans_stats.add_loop_time(cur_time() - loop_start);

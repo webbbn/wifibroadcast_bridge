@@ -26,7 +26,7 @@ uint32_t kbps(tmpl__T v1, tmpl__T v2, double time) {
 // Send status messages to the other radio and log the FEC stats periodically
 void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_period,
 		float status_period, PacketQueueP log_out, PacketQueueP packed_log_out,
-                PacketQueueP log_in) {
+                PacketQueueP log_in, const uint16_t port_lut[]) {
   bool is_ground = (stats.name() == "ground");
 
   uint32_t loop_period =
@@ -182,10 +182,11 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
          static_cast<int16_t>(std::round(orssi)));
       std::stringstream ss;
       ss << "Active ports:  ";
-      for (size_t i = 0; i < RAW_SOCKET_NPORTS; ++i) {
-        uint32_t cnt = s.port_blocks[i] - ps.port_blocks[i];
-        if (cnt > 0) {
-          ss << i << ": " << cnt << "  ";
+      for (auto itr : s.ip_port_blocks) {
+        uint16_t ip_port = itr.first;
+        BlockBytes diff = itr.second - ps.ip_port_blocks[ip_port];
+        if (diff.blocks > 0) {
+          ss << ip_port << ": " << diff << "  ";
         }
       }
       LOG_INFO << ss.str();

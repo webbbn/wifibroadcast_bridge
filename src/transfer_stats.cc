@@ -46,8 +46,9 @@ void TransferStats::add_rssi(int8_t rssi) {
   m_rssi = prev_weight * m_rssi + (1.0 - prev_weight) * rssi;
 }
 
-void TransferStats::add_send_block(uint8_t port, uint32_t bytes, bool inject_error,
-				   uint32_t queue_size, bool flush, float send_time) {
+void TransferStats::add_send_block(uint8_t port, uint16_t ip_port, uint32_t bytes,
+                                   bool inject_error, uint32_t queue_size, bool flush,
+                                   float send_time) {
   std::lock_guard<std::mutex> lock(m_mutex);
   m_send_bytes += bytes;
   ++m_send_blocks;
@@ -56,6 +57,7 @@ void TransferStats::add_send_block(uint8_t port, uint32_t bytes, bool inject_err
   } else {
     LOG_ERROR << "Invalid raw socket port in TransferStats::add_send_block: " << port;
   }
+  m_ip_port_blocks[ip_port] += bytes;
   m_inject_errors += (inject_error ? 1 : 0);
   m_queue_size = prev_weight * m_queue_size + (1.0 - prev_weight) * queue_size;
   m_flushes += (flush ? 1 : 0);
@@ -94,6 +96,7 @@ transfer_stats_t TransferStats::get_stats() {
   stats.latency = m_latency;
   stats.rssi = static_cast<int8_t>(std::round(m_rssi));
   std::copy(m_port_blocks, m_port_blocks + RAW_SOCKET_NPORTS, stats.port_blocks);
+  stats.ip_port_blocks = m_ip_port_blocks;
   return stats;
 }
 
@@ -167,4 +170,9 @@ void TransferStats::timeout() {
 const std::string &TransferStats::name() {
   std::lock_guard<std::mutex> lock(m_mutex);
   return m_name;
+}
+
+std::ostream &operator <<(std::ostream &os, const BlockBytes &bb) {
+  os << "(" << bb.blocks << "," << bb.bytes / 1000 << "kB)";
+  return os;
 }
