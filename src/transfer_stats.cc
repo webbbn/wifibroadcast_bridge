@@ -25,7 +25,14 @@ transfer_stats_t::transfer_stats_t(uint32_t _sequences, uint32_t _blocks_in, uin
     rssi(_rssi) {
   std::fill(port_blocks, port_blocks + RAW_SOCKET_NPORTS, 0);
 }
-
+/*
+TransferStats::TransferStats() :
+  m_seq(0), m_blocks(0), m_bytes(0), m_block_errors(0), m_seq_errors(0),
+  m_send_bytes(0), m_send_blocks(0), m_inject_errors(0), m_flushes(0), m_queue_size(0),
+  m_enc_time(0), m_send_time(0), m_pkt_time(0), m_rssi(0), m_latency(0) {
+  std::fill(m_port_blocks, m_port_blocks + RAW_SOCKET_NPORTS, 0);
+}
+*/
 TransferStats::TransferStats(const std::string &name) :
   m_name(name), m_seq(0), m_blocks(0), m_bytes(0), m_block_errors(0), m_seq_errors(0),
   m_send_bytes(0), m_send_blocks(0), m_inject_errors(0), m_flushes(0), m_queue_size(0),
@@ -110,17 +117,44 @@ bool parse_next(tmpl__T &v, std::istringstream &ss) {
   return false;
 }
 
+TransferStats::TransferStats(const TransferStats &ts) :
+  m_name(ts.m_name), m_window(ts.m_window), m_seq(ts.m_seq), m_blocks(ts.m_blocks),
+  m_bytes(ts.m_bytes), m_block_errors(ts.m_block_errors), m_seq_errors(ts.m_seq_errors),
+  m_send_bytes(ts.m_send_bytes), m_send_blocks(ts.m_send_blocks),
+  m_inject_errors(ts.m_inject_errors), m_flushes(ts.m_flushes),
+  m_queue_size(ts.m_queue_size), m_enc_time(ts.m_enc_time), m_send_time(ts.m_send_time),
+  m_pkt_time(ts.m_pkt_time), m_rssi(ts.m_rssi), m_latency(ts.m_latency) {
+  std::copy(ts.m_port_blocks, ts.m_port_blocks + RAW_SOCKET_NPORTS, m_port_blocks);
+  m_ip_port_blocks = ts.m_ip_port_blocks;
+}
+
+const TransferStats &TransferStats::operator =(const TransferStats &ts) {
+  m_name = ts.m_name;
+  m_window = ts.m_window;
+  m_seq = ts.m_seq;
+  m_blocks = ts.m_blocks;
+  m_bytes = ts.m_bytes;
+  m_block_errors = ts.m_block_errors;
+  m_seq_errors = ts.m_seq_errors;
+  m_send_bytes = ts.m_send_bytes;
+  m_send_blocks = ts.m_send_blocks;
+  m_inject_errors = ts.m_inject_errors;
+  m_flushes = ts.m_flushes;
+  m_queue_size = ts.m_queue_size;
+  m_enc_time = ts.m_enc_time;
+  m_send_time = ts.m_send_time;
+  m_pkt_time = ts.m_pkt_time;
+  m_rssi = ts.m_rssi;
+  m_latency = ts.m_latency;
+  std::copy(ts.m_port_blocks, ts.m_port_blocks + RAW_SOCKET_NPORTS, m_port_blocks);
+  m_ip_port_blocks = ts.m_ip_port_blocks;
+}
+
 bool TransferStats::update(const std::string &s) {
   std::lock_guard<std::mutex> lock(m_mutex);
   std::istringstream ss(s);
-  std::string name;
-  if(!parse_next(name, ss)) {
-    return false;
-  }
-  if (name == m_name) {
-    return true; // Just ignore the other status messages.
-  }
-  return (parse_next(m_seq, ss) &&
+  return (parse_next(m_name, ss) &&
+          parse_next(m_seq, ss) &&
 	  parse_next(m_blocks, ss) &&
 	  parse_next(m_bytes, ss) &&
 	  parse_next(m_block_errors, ss) &&

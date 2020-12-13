@@ -30,9 +30,9 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
   bool is_ground = (stats.name() == "ground");
 
   uint32_t loop_period =
-    static_cast<uint32_t>(std::round(1000.0 * ((syslog_period == 0) ? status_period :
-					       ((status_period == 0) ? syslog_period :
-						std::min(syslog_period, status_period)))));
+    static_cast<uint32_t>(std::round(100.0 * ((syslog_period == 0) ? status_period :
+                                              ((status_period == 0) ? syslog_period :
+                                               std::min(syslog_period, status_period)))));
   transfer_stats_t ps = stats.get_stats();
   transfer_stats_t pso = stats_other.get_stats();
   transfer_stats_t pps = stats.get_stats();
@@ -41,23 +41,27 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
   float krate = 0;
   double last_stat = cur_time();
   double last_log = cur_time();
-  double last_status = cur_time();
+  double last_loop = cur_time();
   while (true) {
     std::this_thread::sleep_for(std::chrono::milliseconds(loop_period));
 
     // Try to fetch a status message from the other side
     Packet block;
-    if (log_in->try_pop(block)) {
+    while (log_in->try_pop(block)) {
       std::string s(block->data(), block->data() + block->size());
-      if (!stats_other.update(s)) {
+      TransferStats stats_recv;
+      if (!stats_recv.update(s)) {
         LOG_WARNING << "Error parsing status string: " << s;
+      }
+      if (stats_recv.name() != stats.name()) {
+        stats_other = stats_recv;
       }
     }
 
     double t = cur_time();
     transfer_stats_t s = stats.get_stats();
     transfer_stats_t os = stats_other.get_stats();
-    double loop_time = t - last_status;
+    double loop_time = t - last_loop;
     rssi = rssi * 0.9 + 0.1 * s.rssi;
     orssi = orssi * 0.9 + 0.1 * os.rssi;
     krate = krate * 0.9 + 0.1 * kbps(s.bytes_in, pps.bytes_in, loop_time);
@@ -180,6 +184,9 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
          otimes,
          static_cast<uint32_t>(std::round(os.latency)),
          static_cast<int16_t>(std::round(orssi)));
+      last_log = t;
+      ps = s;
+      pso = os;
       std::stringstream ss;
       ss << "Active ports:  ";
       for (auto itr : s.ip_port_blocks) {
@@ -190,10 +197,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
         }
       }
       LOG_INFO << ss.str();
-      last_log = t;
-      ps = s;
-      pso = os;
     }
-    last_status = t;
+    last_loop = t;
   }
 }

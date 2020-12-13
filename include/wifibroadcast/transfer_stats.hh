@@ -53,10 +53,11 @@ struct transfer_stats_t {
 class TransferStats {
 public:
 
-  TransferStats(const std::string &name);
+  TransferStats(const std::string &name = "");
+  TransferStats(const TransferStats &ts);
 
+  const TransferStats &operator =(const TransferStats &ts);
   const std::string &name();
-
   void add(const FECDecoderStats &cur, const FECDecoderStats &prev);
   void add_rssi(int8_t rssi);
   void add_send_block(uint8_t port, uint16_t ip_port, uint32_t bytes, bool inject_errors,
