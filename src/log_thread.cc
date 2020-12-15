@@ -35,7 +35,7 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
                                                std::min(syslog_period, status_period)))));
   transfer_stats_t ps = stats.get_stats();
   transfer_stats_t pso = stats_other.get_stats();
-  transfer_stats_t pps = stats.get_stats();
+  uint32_t prev_bytes_in = pso.bytes_in;
   float rssi = 0;
   float orssi = 0;
   float krate = 0;
@@ -58,17 +58,17 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
       }
     }
 
+    // Send status if it's time
     double t = cur_time();
+    double stat_dur = t - last_stat;
     transfer_stats_t s = stats.get_stats();
     transfer_stats_t os = stats_other.get_stats();
-    double loop_time = t - last_loop;
-    rssi = rssi * 0.9 + 0.1 * s.rssi;
-    orssi = orssi * 0.9 + 0.1 * os.rssi;
-    krate = krate * 0.9 + 0.1 * kbps(s.bytes_in, pps.bytes_in, loop_time);
-
-    // Send status if it's time
-    double stat_dur = t - last_stat;
     if (stat_dur > status_period) {
+      double loop_time = t - last_loop;
+      rssi = rssi * 0.9 + 0.1 * s.rssi;
+      orssi = orssi * 0.9 + 0.1 * os.rssi;
+      krate = krate * 0.9 + 0.1 * kbps(s.bytes_in, prev_bytes_in, stat_dur);
+      prev_bytes_in = s.bytes_in;
 
       // Send the local status out the UDP port
       std::string outmsg = stats.serialize();
@@ -110,7 +110,6 @@ void log_thread(TransferStats &stats, TransferStats &stats_other, float syslog_p
         Packet pkt = mkpacket(reinterpret_cast<uint8_t*>(&rxs),
                               reinterpret_cast<uint8_t*>(&rxs) + sizeof(rxs));
         packed_log_out->push(pkt);
-	pps = s;
       }
 
       last_stat = t;
