@@ -32,7 +32,7 @@
 #include <radiotap.h>
 #include <radiotap_iter.h>
 
-#define PCAP_PACKET_CAPTURE_SIZE 65536 // Maximum receive message size
+#define PCAP_PACKET_CAPTURE_SIZE 4096 // Maximum receive message size
 #define PCAP_PACKET_BUFFER_TIMEOUT_MS 1 // Don't wait for multiple messages
 
 #define IEEE80211_RADIOTAP_MCS_HAVE_BW    0x01
@@ -537,10 +537,33 @@ bool RawReceiveSocket::add_device(const std::string &device) {
   // open the interface in pcap
   char errbuf[PCAP_ERRBUF_SIZE];
   errbuf[0] = '\0';
-  m_ppcap = pcap_open_live(device.c_str(), PCAP_PACKET_CAPTURE_SIZE, 0,
-			   PCAP_PACKET_BUFFER_TIMEOUT_MS, errbuf);
+  m_ppcap = pcap_create(device.c_str(), errbuf);
   if (m_ppcap == NULL) {
     LOG_ERROR << "Unable to open " + device + ": " + std::string(errbuf);
+    return false;
+  }
+  if (pcap_set_snaplen(m_ppcap, PCAP_PACKET_CAPTURE_SIZE) != 0) {
+    LOG_ERROR << "Unable to set pcap snaplen";
+    return false;
+  }
+  if (pcap_set_promisc(m_ppcap, 1) != 0) {
+    LOG_ERROR << "Unable to set pcap promisc";
+    return false;
+  }
+  if (pcap_set_timeout(m_ppcap, PCAP_PACKET_BUFFER_TIMEOUT_MS) != 0)  {
+    LOG_ERROR << "Unable to set pcap timeout";
+    return false;
+  }
+
+  // Important: Without enabling this mode pcap buffers quite a lot of packets starting with version 1.5.0 !
+  // https://www.tcpdump.org/manpages/pcap_set_immediate_mode.3pcap.html
+  if (pcap_set_immediate_mode(m_ppcap, 1) < 0) {
+    LOG_ERROR << "Error setting pcap immediate mode on " << device;
+    return false;
+  }
+
+  if (pcap_activate(m_ppcap) != 0)  {
+    LOG_ERROR << "Error activating pcap on " << device;
     return false;
   }
 
