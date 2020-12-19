@@ -148,6 +148,7 @@ const TransferStats &TransferStats::operator =(const TransferStats &ts) {
   m_latency = ts.m_latency;
   std::copy(ts.m_port_blocks, ts.m_port_blocks + RAW_SOCKET_NPORTS, m_port_blocks);
   m_ip_port_blocks = ts.m_ip_port_blocks;
+  return *this;
 }
 
 bool TransferStats::update(const std::string &s) {

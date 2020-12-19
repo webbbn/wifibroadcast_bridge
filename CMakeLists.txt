@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "2.1")
+set(VERSION "2.11")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -69,6 +69,9 @@ include_directories(modules/inih)
 
 # Find the pcap library
 find_package(PCAP)
+if(${HAVE_PCAP_IMMEDIATE_MODE})
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_PCAP_IMMEDIATE_MODE")
+endif()
 
 # Find the pthread library
 find_package(Threads)

@@ -555,12 +555,14 @@ bool RawReceiveSocket::add_device(const std::string &device) {
     return false;
   }
 
+#if defined(HAVE_PCAP_IMMEDIATE_MODE)
   // Important: Without enabling this mode pcap buffers quite a lot of packets starting with version 1.5.0 !
   // https://www.tcpdump.org/manpages/pcap_set_immediate_mode.3pcap.html
   if (pcap_set_immediate_mode(m_ppcap, 1) < 0) {
     LOG_ERROR << "Error setting pcap immediate mode on " << device;
     return false;
   }
+#endif
 
   if (pcap_activate(m_ppcap) != 0)  {
     LOG_ERROR << "Error activating pcap on " << device;
