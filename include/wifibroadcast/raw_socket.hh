@@ -18,6 +18,56 @@ enum LinkType {
 	       RTS_DATA_LINK
 };
 
+static const uint32_t frequencies_2GHz[] =
+  {
+   2412,
+   2417,
+   2422,
+   2427,
+   2432,
+   2437,
+   2442,
+   2447,
+   2452,
+   2457,
+   2462,
+   2467,
+   2472,
+   2484
+  };
+static const uint32_t nfreq_2GHz = sizeof(frequencies_2GHz) / sizeof(uint32_t);
+
+static const uint32_t frequencies_5GHz[] =
+  {
+   5160,
+   5170,
+   5180,
+   5200,
+   5220,
+   5240,
+   5260,
+   5280,
+   5300,
+   5320,
+   5500,
+   5520,
+   5540,
+   5560,
+   5580,
+   5600,
+   5620,
+   5640,
+   5660,
+   5680,
+   5700,
+   5745,
+   5765,
+   5785,
+   5805,
+   5825
+  };
+static const uint32_t nfreq_5GHz = sizeof(frequencies_5GHz) / sizeof(uint32_t);
+
 struct monitor_message_t {
   monitor_message_t(size_t data_size = 0) :
     data(data_size), port(0), link_type(DATA_LINK), rssi(0), rate(0), channel(0),
@@ -52,6 +102,8 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz);
 bool set_wifi_txpower_fixed(const std::string &device);
 bool set_wifi_txpower(const std::string &device, uint32_t power_mbm);
 bool set_wifi_legacy_bitrate(const std::string &device, uint8_t rate);
+bool get_wifi_frequency_list(const std::string &device, std::vector<uint32_t> &frequencies);
+
 
 class RawSendSocket {
 public:

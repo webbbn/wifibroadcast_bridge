@@ -36,8 +36,9 @@
 #include <wfb_bridge.hh>
 #include <raw_send_thread.hh>
 #include <udev_interface.hh>
+#include <control_server.hh>
 
-double last_packet_time = 0;
+ControlServer control_server;
 
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
@@ -89,10 +90,9 @@ int main(int argc, char** argv) {
   std::string packed_status_host = conf.Get("global", "packed_status_host", "127.0.0.1");
   uint16_t mtu = static_cast<uint16_t>(conf.GetInteger("global", "mtu", 1466));
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
-  uint16_t link_status_ip_port =
-    static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
   uint16_t link_status_port =
-    static_cast<uint16_t>(conf.GetInteger("link-status", "port", 1));
+    static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
+  uint16_t command_port = static_cast<uint16_t>(conf.GetInteger("global", "command_port", 5115));
 
   // Calculate the maximum data block size
   uint16_t blocksize = mtu - FEC_OVERHEAD - RAW_SOCKET_OVERHEAD;
@@ -215,9 +215,9 @@ int main(int argc, char** argv) {
   PacketQueueP log_out(new PacketQueue(1000));
   PacketQueueP packed_log_out(new PacketQueue(1000));
   PacketQueueP log_in(new PacketQueue(1000));
-  LOG_INFO << "Sending status to: " << log_to_host << ":" << link_status_ip_port;
-  auto logts = [log_out, log_to_host, link_status_ip_port] () {
-                 udp_send_loop(log_out, log_to_host, link_status_ip_port);
+  LOG_INFO << "Sending status to: " << log_to_host << ":" << link_status_port;
+  auto logts = [log_out, log_to_host, link_status_port] () {
+                 udp_send_loop(log_out, log_to_host, link_status_port);
                  };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logts)));
   LOG_INFO << "Sending packed status to: " << local_host << ":" << packed_status_port;
@@ -225,16 +225,16 @@ int main(int argc, char** argv) {
                   udp_send_loop(packed_log_out, packed_status_host, packed_status_port);
                 };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(plogts)));
-  LOG_INFO << "Receiving status packets at on port: " << link_status_ip_port;
-  auto logrx = [log_in, link_status_ip_port, blocksize] () {
-                 udp_recv_loop(log_in, "0.0.0.0", link_status_ip_port, blocksize);
+  LOG_INFO << "Receiving status packets at on port: " << link_status_port;
+  auto logrx = [log_in, link_status_port, blocksize] () {
+                 udp_recv_loop(log_in, "0.0.0.0", link_status_port, blocksize);
                };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(logrx)));
 
   // Create the stats logging thread.
   {
     auto logth = [&trans_stats, &trans_stats_other, syslog_period, status_period,
-                  log_out, packed_log_out, log_in, port_lut] {
+                  log_out, packed_log_out, log_in, port_lut] () {
                    log_thread(trans_stats, trans_stats_other, syslog_period, status_period,
                               log_out, packed_log_out, log_in, port_lut);
                  };
@@ -242,10 +242,16 @@ int main(int argc, char** argv) {
   }
 
   // Create the thread for FEC decode and distributing the messages from incoming raw socket queue
-  auto usth = [&inqueue, send_queue, &trans_stats, &trans_stats_other, link_status_port] () {
+  auto usth = [&inqueue, send_queue, &trans_stats] () {
                 fec_decode_thread(inqueue, send_queue, trans_stats);
               };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
+
+  // Create the TCP server for changing the frequency on-the-fly, etc
+  if (!control_server.start(command_port)) {
+    LOG_CRITICAL << "Error starting the control server";
+    return EXIT_FAILURE;
+  }
 
   // Keep trying to connect/reconnect to the devices
   std::set<std::string> current_devices;
@@ -413,7 +419,6 @@ int main(int argc, char** argv) {
                 if (relay_queue) {
                   relay_queue->push(msg);
                 }
-                last_packet_time = cur_time();
               }
             } else {
               // Error return, which likely means the wifi card went away
@@ -517,6 +522,16 @@ bool configure_device(const std::string &device, const std::string &device_type,
     LOG_ERROR << "Error trying to configure " << device << " to monitor mode";
     return false;
   }
+
+  // Update the frequence list in the command server.
+  control_server.update_frequencies(device);
+  std::vector<uint32_t> frequencies;
+  control_server.get_frequencies(frequencies);
+  std::stringstream ss;
+  for (auto freq : frequencies) {
+    ss << freq << " ";
+  }
+  LOG_INFO << "Frequencies: " << ss.str();
 
   // Set the frequency
   if (!set_wifi_frequency(device, freq)) {

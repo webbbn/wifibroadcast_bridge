@@ -158,8 +158,16 @@ bool set_wifi_up_down(const std::string &device, bool up) {
   return (ioctl(sockfd, SIOCSIFFLAGS, &ifr) >= 0);
 }
 
+static int error_handler(struct sockaddr_nl *nla, struct nlmsgerr *err, void *arg) {
+  int *ret = reinterpret_cast<int*>(arg);
+  *ret = err->error;
+  return NL_STOP;
+}
 
 bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
+  int err = 1;
+  struct nl_cb *cb = nl_cb_alloc(NL_CB_DEFAULT);
+  int rc;
 
   /* Create the socket and connect to it. */
   struct nl_sock *sckt = nl_socket_alloc();
@@ -179,11 +187,13 @@ bool set_wifi_frequency(const std::string &device, uint32_t freq_mhz) {
   NLA_PUT_U32(mesg, NL80211_ATTR_WIPHY_FREQ, freq_mhz);
 
   /* Finally send it and receive the amount of bytes sent. */
-  nl_send_auto_complete(sckt, mesg);
-
+  nl_cb_err(cb, NL_CB_CUSTOM, error_handler, &err);
+  rc = nl_send_auto(sckt, mesg);
+  nl_recvmsgs(sckt, cb);
+  nl_cb_put(cb);
   nlmsg_free(mesg);
   nl_socket_free(sckt);
-  return true;
+  return (err >= 0);
 
  nla_put_failure:
   nlmsg_free(mesg);
@@ -330,6 +340,21 @@ bool set_wifi_txpower(const std::string &device, uint32_t power_mbm) {
   nlmsg_free(mesg);
   nl_socket_free(sckt);
   return false;
+}
+
+bool get_wifi_frequency_list(const std::string &device, std::vector<uint32_t> &frequencies) {
+  frequencies.clear();
+  for (uint32_t f = 0; f < nfreq_2GHz; ++f) {
+    if (set_wifi_frequency(device, frequencies_2GHz[f])) {
+      frequencies.push_back(frequencies_2GHz[f]);
+    }
+  }
+  for (uint32_t f = 0; f < nfreq_5GHz; ++f) {
+    if (set_wifi_frequency(device, frequencies_5GHz[f])) {
+      frequencies.push_back(frequencies_5GHz[f]);
+    }
+  }
+  return true;
 }
 
 inline uint32_t cur_microseconds() {
