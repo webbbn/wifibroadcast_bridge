@@ -68,11 +68,13 @@ add_subdirectory(modules/tinyformat)
 include_directories(modules/tinyformat)
 
 # Add the civetweb submodule directory
-option(BUILD_SHARED_LIBS "" ON)
-option(CIVETWEB_BUILD_TESTING "" OFF)
-option(CIVETWEB_ENABLE_CXX "" ON)
-add_subdirectory(modules/civetweb)
+#option(BUILD_SHARED_LIBS "" ON)
+#option(CIVETWEB_BUILD_TESTING "" OFF)
+#option(CIVETWEB_ENABLE_CXX "" ON)
+#add_subdirectory(modules/civetweb)
 include_directories(modules/civetweb/include)
+set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -DNO_SSL")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_SSL")
 
 # Add the inih submodule directory
 include_directories(modules/inih)
@@ -119,9 +121,11 @@ add_executable(wfb_bridge
   src/udev_interface.cc
   src/tun_interface.cc
   src/http_server.cc
+  modules/civetweb/src/civetweb.c
+  modules/civetweb/src/CivetServer.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY} civetweb-cpp wifibroadcast pthread)
+target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY} wifibroadcast pthread)
 
 # Build the FEC test program
 add_executable(test_fec src/test_fec.cc)
