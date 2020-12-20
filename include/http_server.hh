@@ -21,6 +21,7 @@ public:
   void get_frequencies(std::set<uint32_t> &freq);
   bool frequency_valid(uint32_t freq);
   bool set_frequency(uint32_t freq);
+  uint32_t get_frequency();
 
 private:
   std::shared_ptr<CivetServer> m_server;
@@ -28,4 +29,5 @@ private:
   std::mutex m_mutex;
   std::vector<uint32_t> m_freqs;
   std::string m_device;
+  uint16_t m_current_frequency;
 };

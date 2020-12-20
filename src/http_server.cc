@@ -53,6 +53,21 @@ protected:
   HTTPServer *m_server;
 };
 
+class GetFrequencyHandler : public CivetHandler {
+public:
+  GetFrequencyHandler(HTTPServer *server) : m_server(server) {}
+  virtual ~GetFrequencyHandler() {}
+
+  virtual bool handleGet(CivetServer *server, struct mg_connection *conn) {
+    uint32_t freq = m_server->get_frequency();
+    mg_printf(conn, "%d", freq);
+    return true;
+  }
+
+protected:
+  HTTPServer *m_server;
+};
+
 bool HTTPServer::start(uint16_t port, const std::string &document_root) {
 
   // Initialize the web server library
@@ -78,6 +93,8 @@ bool HTTPServer::start(uint16_t port, const std::string &document_root) {
   m_server->addHandler("/frequencies", m_handlers.back().get());
   m_handlers.push_back(std::make_shared<SetFrequencyHandler>(this));
   m_server->addHandler("/set_frequency", m_handlers.back().get());
+  m_handlers.push_back(std::make_shared<GetFrequencyHandler>(this));
+  m_server->addHandler("/get_frequency", m_handlers.back().get());
 
   return true;
 }
@@ -121,5 +138,14 @@ bool HTTPServer::set_frequency(uint32_t freq) {
     LOG_ERROR << "Error setting frequency of " << m_device << " to " << freq;
     return false;
   }
+  {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_current_frequency = freq;
+  }
   return true;
+}
+
+uint32_t HTTPServer::get_frequency() {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return m_current_frequency;
 }
