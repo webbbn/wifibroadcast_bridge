@@ -4,3 +4,6 @@
 [submodule "modules/inih"]
 	path = modules/inih
 	url = https://github.com/jtilly/inih.git
+[submodule "modules/civetweb"]
+	path = modules/civetweb
+	url = https://github.com/civetweb/civetweb.git

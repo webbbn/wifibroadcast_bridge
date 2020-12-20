@@ -36,9 +36,9 @@
 #include <wfb_bridge.hh>
 #include <raw_send_thread.hh>
 #include <udev_interface.hh>
-#include <control_server.hh>
+#include <http_server.hh>
 
-ControlServer control_server;
+HTTPServer http_server;
 
 std::set<std::string> parse_device_list(const INIReader &conf, const std::string &field);
 bool configure_device(const std::string &device, const std::string &device_type, bool transmit,
@@ -92,7 +92,8 @@ int main(int argc, char** argv) {
   uint16_t max_queue_size = static_cast<uint16_t>(conf.GetInteger("global", "maxqueuesize", 200));
   uint16_t link_status_port =
     static_cast<uint16_t>(conf.GetInteger("link-status", "ip_port", 5155));
-  uint16_t command_port = static_cast<uint16_t>(conf.GetInteger("global", "command_port", 5115));
+  uint16_t http_port = static_cast<uint16_t>(conf.GetInteger("global", "http_port", 5180));
+  std::string http_dir = conf.Get("global", "http_dir", "");
 
   // Calculate the maximum data block size
   uint16_t blocksize = mtu - FEC_OVERHEAD - RAW_SOCKET_OVERHEAD;
@@ -247,10 +248,12 @@ int main(int argc, char** argv) {
               };
   thrs.push_back(std::shared_ptr<std::thread>(new std::thread(usth)));
 
-  // Create the TCP server for changing the frequency on-the-fly, etc
-  if (!control_server.start(command_port)) {
-    LOG_CRITICAL << "Error starting the control server";
+  // Create the configuration HTTP server
+  if (!http_server.start(http_port)) {
+    LOG_CRITICAL << "Error starting the HTTP server";
     return EXIT_FAILURE;
+  } else {
+    LOG_INFO << "HTTP server running on port: " << http_port;
   }
 
   // Keep trying to connect/reconnect to the devices
@@ -523,21 +526,18 @@ bool configure_device(const std::string &device, const std::string &device_type,
     return false;
   }
 
-  // Update the frequence list in the command server.
-  control_server.update_frequencies(device);
+  // Update the frequence list in the http server.
+  if (!http_server.update_frequencies(device, freq)) {
+    LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
+    return false;
+  }
   std::vector<uint32_t> frequencies;
-  control_server.get_frequencies(frequencies);
+  http_server.get_frequencies(frequencies);
   std::stringstream ss;
   for (auto freq : frequencies) {
     ss << freq << " ";
   }
   LOG_INFO << "Frequencies: " << ss.str();
-
-  // Set the frequency
-  if (!set_wifi_frequency(device, freq)) {
-    LOG_ERROR << "Error setting frequency of " << device << " to " << freq;
-    return false;
-  }
 
   // Configure the transmit power
   if (!set_wifi_txpower(device, txpower)) {

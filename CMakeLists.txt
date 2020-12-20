@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "2.2")
+set(VERSION "2.2.1")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -55,6 +55,9 @@ endif()
 if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/inih/INIReader.h")
   message(FATAL_ERROR "The inih submodule was not downloaded! Please update submodules and try again.")
 endif()
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/civetweb/include/civetweb.h")
+  message(FATAL_ERROR "The civetweb submodule was not downloaded! Please update submodules and try again.")
+endif()
 
 # Add the log4cpp package
 find_package(log4cpp REQUIRED)
@@ -63,6 +66,13 @@ include_directories(${LOG4CPP_INCLUDE_DIR})
 # Add the tinyformat submodule directory
 add_subdirectory(modules/tinyformat)
 include_directories(modules/tinyformat)
+
+# Add the civetweb submodule directory
+option(BUILD_SHARED_LIBS "" ON)
+option(CIVETWEB_BUILD_TESTING "" OFF)
+option(CIVETWEB_ENABLE_CXX "" ON)
+add_subdirectory(modules/civetweb)
+include_directories(modules/civetweb/include)
 
 # Add the inih submodule directory
 include_directories(modules/inih)
@@ -108,10 +118,10 @@ add_executable(wfb_bridge
   src/raw_send_thread.cc
   src/udev_interface.cc
   src/tun_interface.cc
-  src/control_server.cc
+  src/http_server.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc)
 install(TARGETS wfb_bridge DESTINATION ${BinDir} COMPONENT applications)
-target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY}  wifibroadcast pthread)
+target_link_libraries(wfb_bridge ${PCAP_LIBRARY} ${LOG4CPP_LIBRARIES} ${LibNL_LIBRARY} ${LibNL_GENL_LIBRARY} ${UDEV_LIBRARY} civetweb-cpp wifibroadcast pthread)
 
 # Build the FEC test program
 add_executable(test_fec src/test_fec.cc)
