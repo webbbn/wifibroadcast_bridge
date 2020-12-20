@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.1)
 project(wifibroadcast_bridge)
 
 # Set the version
-set(VERSION "2.2")
+set(VERSION "2.2.1")
 
 # Default the CMAKE_INSTALL_PREFIX
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -55,6 +55,9 @@ endif()
 if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/inih/INIReader.h")
   message(FATAL_ERROR "The inih submodule was not downloaded! Please update submodules and try again.")
 endif()
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/modules/Simple-Web-Server/server_http.hpp")
+  message(FATAL_ERROR "The Simple-Web-Server submodule was not downloaded! Please update submodules and try again.")
+endif()
 
 # Add the log4cpp package
 find_package(log4cpp REQUIRED)
@@ -66,6 +69,12 @@ include_directories(modules/tinyformat)
 
 # Add the inih submodule directory
 include_directories(modules/inih)
+
+# Add the Simple-Web-Server submodule directory
+option(USE_OPENSSL "" OFF)
+option(USE_STANDALONE_ASIO "" ON)
+add_subdirectory(modules/Simple-Web-Server)
+include_directories(modules/Simple-Web-Server)
 
 # Find the pcap library
 find_package(PCAP)
